@@ -19,17 +19,17 @@ const Index: React.FC = () => {
       <CyberGrid />
       
       {/* Auth Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
+      <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 backdrop-blur-xl bg-background/60 border-b border-border/30 animate-fade-in">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+          <div className="flex items-center gap-2 group cursor-pointer hover-scale">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow duration-300">
               <span className="text-primary-foreground font-mono font-bold text-sm">S</span>
             </div>
             <span className="font-mono font-bold text-lg text-foreground">StegAI</span>
           </div>
           
           {loading ? null : user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 animate-fade-in">
               <span className="text-sm text-muted-foreground hidden sm:block">
                 {user.email}
               </span>
@@ -37,7 +37,7 @@ const Index: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={signOut}
-                className="bg-muted/30 border-border/50 hover:bg-muted/50"
+                className="bg-muted/30 border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-200"
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out
@@ -48,7 +48,7 @@ const Index: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="bg-muted/30 border-border/50 hover:bg-primary/20 hover:border-primary/50"
+                className="bg-muted/30 border-border/50 hover:bg-primary/20 hover:border-primary/50 hover:scale-105 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20"
               >
                 <User className="w-4 h-4 mr-2" />
                 Sign In
@@ -67,48 +67,56 @@ const Index: React.FC = () => {
           <div className="grid lg:grid-cols-3 gap-6 mb-10">
             {/* Left Column - Workspace */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Metrics Dashboard */}
-              <section>
+            {/* Metrics Dashboard */}
+              <section className="animate-fade-in" style={{ animationDelay: '100ms' }}>
                 <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
                   Performance Metrics
                 </h2>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <MetricCard
-                    label="PSNR Value"
-                    value="42.5"
-                    unit="dB"
-                    icon={<Activity className="w-5 h-5" />}
-                    color="cyan"
-                    progress={85}
-                  />
-                  <MetricCard
-                    label="SSIM Score"
-                    value="0.98"
-                    icon={<BarChart3 className="w-5 h-5" />}
-                    color="purple"
-                    progress={98}
-                  />
-                  <MetricCard
-                    label="Encoding Time"
-                    value="1.2"
-                    unit="sec"
-                    icon={<Timer className="w-5 h-5" />}
-                    color="green"
-                    progress={40}
-                  />
-                  <MetricCard
-                    label="Capacity"
-                    value="2.4"
-                    unit="bpp"
-                    icon={<Zap className="w-5 h-5" />}
-                    color="pink"
-                    progress={60}
-                  />
+                  <div className="animate-fade-in" style={{ animationDelay: '150ms' }}>
+                    <MetricCard
+                      label="PSNR Value"
+                      value="42.5"
+                      unit="dB"
+                      icon={<Activity className="w-5 h-5" />}
+                      color="cyan"
+                      progress={85}
+                    />
+                  </div>
+                  <div className="animate-fade-in" style={{ animationDelay: '200ms' }}>
+                    <MetricCard
+                      label="SSIM Score"
+                      value="0.98"
+                      icon={<BarChart3 className="w-5 h-5" />}
+                      color="purple"
+                      progress={98}
+                    />
+                  </div>
+                  <div className="animate-fade-in" style={{ animationDelay: '250ms' }}>
+                    <MetricCard
+                      label="Encoding Time"
+                      value="1.2"
+                      unit="sec"
+                      icon={<Timer className="w-5 h-5" />}
+                      color="green"
+                      progress={40}
+                    />
+                  </div>
+                  <div className="animate-fade-in" style={{ animationDelay: '300ms' }}>
+                    <MetricCard
+                      label="Capacity"
+                      value="2.4"
+                      unit="bpp"
+                      icon={<Zap className="w-5 h-5" />}
+                      color="pink"
+                      progress={60}
+                    />
+                  </div>
                 </div>
               </section>
               
               {/* Workspace Panels */}
-              <section>
+              <section className="animate-fade-in" style={{ animationDelay: '350ms' }}>
                 <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
                   Workspace
                 </h2>
@@ -116,7 +124,7 @@ const Index: React.FC = () => {
               </section>
               
               {/* Visual Comparison */}
-              <section>
+              <section className="animate-fade-in" style={{ animationDelay: '400ms' }}>
                 <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
                   Visual Analysis
                 </h2>
@@ -124,7 +132,7 @@ const Index: React.FC = () => {
               </section>
               
               {/* Architecture Overview */}
-              <section>
+              <section className="animate-fade-in" style={{ animationDelay: '450ms' }}>
                 <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
                   System Architecture
                 </h2>
@@ -133,7 +141,7 @@ const Index: React.FC = () => {
             </div>
             
             {/* Right Column - History Sidebar */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 animate-fade-in" style={{ animationDelay: '200ms' }}>
               <div className="sticky top-24">
                 <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
                   Operation Log
