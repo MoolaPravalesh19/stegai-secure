@@ -1,16 +1,52 @@
 import React from 'react';
-import { Activity, Timer, BarChart3, Zap } from 'lucide-react';
+import { Activity, Timer, BarChart3, Zap, LogOut, User } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import CyberGrid from '@/components/CyberGrid';
 import HeroSection from '@/components/HeroSection';
 import WorkspacePanel from '@/components/WorkspacePanel';
 import MetricCard from '@/components/MetricCard';
 import ComparisonSlider from '@/components/ComparisonSlider';
 import HistorySidebar from '@/components/HistorySidebar';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 
 const Index: React.FC = () => {
+  const { user, loading, signOut } = useAuth();
+
   return (
     <div className="min-h-screen relative">
       <CyberGrid />
+      
+      {/* Auth Header */}
+      <header className="fixed top-0 right-0 z-50 p-4">
+        {loading ? null : user ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:block">
+              {user.email}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={signOut}
+              className="bg-muted/30 border-border/50 hover:bg-muted/50"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
+        ) : (
+          <Link to="/auth">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-muted/30 border-border/50 hover:bg-primary/20 hover:border-primary/50"
+            >
+              <User className="w-4 h-4 mr-2" />
+              Sign In
+            </Button>
+          </Link>
+        )}
+      </header>
       
       <div className="relative z-10 flex">
         {/* Main Content */}
