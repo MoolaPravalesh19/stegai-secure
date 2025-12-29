@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      encryption_history: {
+        Row: {
+          cover_image_url: string | null
+          created_at: string
+          encoding_time_ms: number | null
+          filename: string | null
+          id: string
+          message: string | null
+          operation_type: string
+          psnr_value: number | null
+          ssim_score: number | null
+          status: string
+          stego_image_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cover_image_url?: string | null
+          created_at?: string
+          encoding_time_ms?: number | null
+          filename?: string | null
+          id?: string
+          message?: string | null
+          operation_type: string
+          psnr_value?: number | null
+          ssim_score?: number | null
+          status?: string
+          stego_image_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cover_image_url?: string | null
+          created_at?: string
+          encoding_time_ms?: number | null
+          filename?: string | null
+          id?: string
+          message?: string | null
+          operation_type?: string
+          psnr_value?: number | null
+          ssim_score?: number | null
+          status?: string
+          stego_image_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
