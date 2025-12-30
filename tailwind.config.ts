@@ -107,11 +107,11 @@ export default {
         "scale-in": "scale-in 0.2s ease-out",
       },
       backgroundImage: {
-        "cyber-grid": "linear-gradient(hsl(var(--primary) / 0.03) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary) / 0.03) 1px, transparent 1px)",
+        "cyber-grid": "linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px)",
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
       },
       backgroundSize: {
-        "grid-size": "50px 50px",
+        "grid-size": "60px 60px",
       },
     },
   },
