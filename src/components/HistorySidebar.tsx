@@ -130,12 +130,6 @@ const HistorySidebar: React.FC = () => {
           ))
         )}
       </div>
-      
-      <div className="mt-4 pt-4 border-t border-border/50">
-        <p className="text-xs text-muted-foreground text-center">
-          Powered by <span className="text-primary font-mono">Lovable Cloud</span>
-        </p>
-      </div>
     </GlassCard>
   );
 };
