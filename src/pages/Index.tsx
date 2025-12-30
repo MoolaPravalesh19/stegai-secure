@@ -8,6 +8,7 @@ import MetricCard from '@/components/MetricCard';
 import ComparisonSlider from '@/components/ComparisonSlider';
 import HistorySidebar from '@/components/HistorySidebar';
 import ArchitectureOverview from '@/components/ArchitectureOverview';
+import ThemeToggle from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -28,33 +29,37 @@ const Index: React.FC = () => {
             <span className="font-mono font-bold text-lg text-foreground">StegAI</span>
           </div>
           
-          {loading ? null : user ? (
-            <div className="flex items-center gap-3 animate-fade-in">
-              <span className="text-sm text-muted-foreground hidden sm:block">
-                {user.email}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={signOut}
-                className="bg-muted/30 border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-200"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          ) : (
-            <Link to="/auth">
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-muted/30 border-border/50 hover:bg-primary/20 hover:border-primary/50 hover:scale-105 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20"
-              >
-                <User className="w-4 h-4 mr-2" />
-                Sign In
-              </Button>
-            </Link>
-          )}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            
+            {loading ? null : user ? (
+              <div className="flex items-center gap-3 animate-fade-in">
+                <span className="text-sm text-muted-foreground hidden sm:block">
+                  {user.email}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={signOut}
+                  className="bg-muted/30 border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-200"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </Button>
+              </div>
+            ) : (
+              <Link to="/auth">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-muted/30 border-border/50 hover:bg-primary/20 hover:border-primary/50 hover:scale-105 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Sign In
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
       </header>
       
