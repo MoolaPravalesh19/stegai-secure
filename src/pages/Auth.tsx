@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Shield, Mail, Lock, ArrowRight, Loader2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import CyberGrid from '@/components/CyberGrid';
 import { z } from 'zod';
@@ -120,6 +120,15 @@ const Auth: React.FC = () => {
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
       
       <div className="glass-card w-full max-w-md p-8 relative z-10">
+        {/* Close Button */}
+        <button
+          onClick={() => navigate('/')}
+          className="absolute top-4 right-4 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="relative mb-4">
