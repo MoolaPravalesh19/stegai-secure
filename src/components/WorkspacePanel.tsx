@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Unlock, Shield, Loader2, Sparkles, Key, Eye, EyeOff } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
+import ImageHistogram from './ImageHistogram';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
@@ -108,6 +109,8 @@ const WorkspacePanel: React.FC = () => {
             onImageSelect={setCoverImage}
           />
           
+          <ImageHistogram imageFile={coverImage} label="Cover Image Histogram" />
+          
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-2 block">
               Secret Message
@@ -211,6 +214,8 @@ const WorkspacePanel: React.FC = () => {
             label="Encrypted Image" 
             onImageSelect={setStegoImage}
           />
+          
+          <ImageHistogram imageFile={stegoImage} label="Stego Image Histogram" />
           
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
