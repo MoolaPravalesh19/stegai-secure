@@ -21,6 +21,30 @@ const WorkspacePanel: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [revealedMessage, setRevealedMessage] = useState<string | null>(null);
 
+  const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
+    if (!password) return { score: 0, label: '', color: '' };
+    
+    let score = 0;
+    
+    // Length checks
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
+    if (password.length >= 16) score += 1;
+    
+    // Character variety checks
+    if (/[a-z]/.test(password)) score += 1;
+    if (/[A-Z]/.test(password)) score += 1;
+    if (/[0-9]/.test(password)) score += 1;
+    if (/[^a-zA-Z0-9]/.test(password)) score += 1;
+    
+    if (score <= 2) return { score: 1, label: 'Weak', color: 'bg-destructive' };
+    if (score <= 4) return { score: 2, label: 'Medium', color: 'bg-yellow-500' };
+    if (score <= 5) return { score: 3, label: 'Strong', color: 'bg-green-500' };
+    return { score: 4, label: 'Very Strong', color: 'bg-emerald-400' };
+  };
+
+  const keyStrength = getPasswordStrength(encryptionKey);
+
   const handleEncode = async () => {
     if (!coverImage || !secretMessage) {
       toast({
@@ -120,9 +144,32 @@ const WorkspacePanel: React.FC = () => {
                 {showEncryptionKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Optional: Add a key to encrypt your message before hiding
-            </p>
+            {encryptionKey && (
+              <div className="mt-3 space-y-2">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4].map((level) => (
+                    <div
+                      key={level}
+                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                        level <= keyStrength.score ? keyStrength.color : 'bg-muted/50'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className={`text-xs font-medium ${
+                  keyStrength.score === 1 ? 'text-destructive' :
+                  keyStrength.score === 2 ? 'text-yellow-500' :
+                  'text-green-500'
+                }`}>
+                  {keyStrength.label}
+                </p>
+              </div>
+            )}
+            {!encryptionKey && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Optional: Add a key to encrypt your message before hiding
+              </p>
+            )}
           </div>
           
           <Button 
