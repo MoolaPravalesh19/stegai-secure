@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Lock, Unlock, Shield, Loader2, Sparkles } from 'lucide-react';
+import { Lock, Unlock, Shield, Loader2, Sparkles, Key, Eye, EyeOff } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
+import { Input } from './ui/input';
 import { toast } from '@/hooks/use-toast';
 
 type Mode = 'encode' | 'decode';
@@ -12,6 +13,10 @@ const WorkspacePanel: React.FC = () => {
   const [mode, setMode] = useState<Mode>('encode');
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [secretMessage, setSecretMessage] = useState('');
+  const [encryptionKey, setEncryptionKey] = useState('');
+  const [decryptionKey, setDecryptionKey] = useState('');
+  const [showEncryptionKey, setShowEncryptionKey] = useState(false);
+  const [showDecryptionKey, setShowDecryptionKey] = useState(false);
   const [stegoImage, setStegoImage] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [revealedMessage, setRevealedMessage] = useState<string | null>(null);
@@ -87,10 +92,36 @@ const WorkspacePanel: React.FC = () => {
               placeholder="Enter your secret message to hide..."
               value={secretMessage}
               onChange={(e) => setSecretMessage(e.target.value)}
-              className="min-h-[120px] bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 resize-none font-mono text-sm"
+              className="min-h-[100px] bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 resize-none font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground mt-2">
               {secretMessage.length} characters
+            </p>
+          </div>
+          
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
+              <Key className="w-4 h-4" />
+              Encryption Key
+            </label>
+            <div className="relative">
+              <Input
+                type={showEncryptionKey ? "text" : "password"}
+                placeholder="Enter encryption key for added security..."
+                value={encryptionKey}
+                onChange={(e) => setEncryptionKey(e.target.value)}
+                className="bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 font-mono text-sm pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowEncryptionKey(!showEncryptionKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showEncryptionKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Optional: Add a key to encrypt your message before hiding
             </p>
           </div>
           
@@ -133,6 +164,32 @@ const WorkspacePanel: React.FC = () => {
             label="Encrypted Image" 
             onImageSelect={setStegoImage}
           />
+          
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
+              <Key className="w-4 h-4" />
+              Decryption Key
+            </label>
+            <div className="relative">
+              <Input
+                type={showDecryptionKey ? "text" : "password"}
+                placeholder="Enter decryption key..."
+                value={decryptionKey}
+                onChange={(e) => setDecryptionKey(e.target.value)}
+                className="bg-muted/30 border-border/50 focus:border-secondary/50 focus:ring-secondary/20 font-mono text-sm pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowDecryptionKey(!showDecryptionKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showDecryptionKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Enter the key used during encryption
+            </p>
+          </div>
           
           <Button 
             variant="secondary" 
