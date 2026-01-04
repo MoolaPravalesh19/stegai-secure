@@ -6,13 +6,53 @@ interface ImageHistogramProps {
   label?: string;
 }
 
+export interface HistogramData {
+  red: number[];
+  green: number[];
+  blue: number[];
+}
+
+export const analyzeImageHistogram = (imageFile: File): Promise<HistogramData> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(imageFile);
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve({ red: [], green: [], blue: [] });
+        return;
+      }
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      const red = new Array(256).fill(0);
+      const green = new Array(256).fill(0);
+      const blue = new Array(256).fill(0);
+
+      for (let i = 0; i < data.length; i += 4) {
+        red[data[i]]++;
+        green[data[i + 1]]++;
+        blue[data[i + 2]]++;
+      }
+
+      URL.revokeObjectURL(url);
+      resolve({ red, green, blue });
+    };
+
+    img.src = url;
+  });
+};
+
 const ImageHistogram: React.FC<ImageHistogramProps> = ({ imageFile, label = "Histogram Analysis" }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [histogramData, setHistogramData] = useState<{
-    red: number[];
-    green: number[];
-    blue: number[];
-  } | null>(null);
+  const [histogramData, setHistogramData] = useState<HistogramData | null>(null);
 
   useEffect(() => {
     if (!imageFile) {
@@ -20,43 +60,7 @@ const ImageHistogram: React.FC<ImageHistogramProps> = ({ imageFile, label = "His
       return;
     }
 
-    const analyzeImage = async () => {
-      const img = new Image();
-      const url = URL.createObjectURL(imageFile);
-      
-      img.onload = () => {
-        // Create offscreen canvas to analyze image
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-
-        // Initialize histogram arrays
-        const red = new Array(256).fill(0);
-        const green = new Array(256).fill(0);
-        const blue = new Array(256).fill(0);
-
-        // Count pixel values
-        for (let i = 0; i < data.length; i += 4) {
-          red[data[i]]++;
-          green[data[i + 1]]++;
-          blue[data[i + 2]]++;
-        }
-
-        setHistogramData({ red, green, blue });
-        URL.revokeObjectURL(url);
-      };
-
-      img.src = url;
-    };
-
-    analyzeImage();
+    analyzeImageHistogram(imageFile).then(setHistogramData);
   }, [imageFile]);
 
   useEffect(() => {
@@ -69,10 +73,8 @@ const ImageHistogram: React.FC<ImageHistogramProps> = ({ imageFile, label = "His
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Find max value for normalization
     const maxValue = Math.max(
       ...histogramData.red,
       ...histogramData.green,
@@ -81,7 +83,6 @@ const ImageHistogram: React.FC<ImageHistogramProps> = ({ imageFile, label = "His
 
     const barWidth = width / 256;
 
-    // Draw histograms with transparency
     const drawChannel = (data: number[], color: string) => {
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -98,7 +99,6 @@ const ImageHistogram: React.FC<ImageHistogramProps> = ({ imageFile, label = "His
       ctx.fill();
     };
 
-    // Draw each channel with transparency for overlap visibility
     drawChannel(histogramData.red, 'rgba(239, 68, 68, 0.5)');
     drawChannel(histogramData.green, 'rgba(34, 197, 94, 0.5)');
     drawChannel(histogramData.blue, 'rgba(59, 130, 246, 0.5)');
@@ -122,11 +122,9 @@ const ImageHistogram: React.FC<ImageHistogramProps> = ({ imageFile, label = "His
           className="w-full h-24 rounded-lg bg-background/50"
         />
         
-        {/* Gradient overlay for aesthetics */}
         <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent rounded-lg pointer-events-none" />
       </div>
 
-      {/* Legend */}
       <div className="flex items-center justify-center gap-4 text-xs">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-red-500/70" />
