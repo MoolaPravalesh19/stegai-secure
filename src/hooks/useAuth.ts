@@ -26,7 +26,14 @@ export const useAuth = () => {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      // If signOut fails, clear local state anyway
+      console.log('SignOut completed with local cleanup');
+    }
+    setUser(null);
+    setSession(null);
   };
 
   return { user, session, loading, signOut };
