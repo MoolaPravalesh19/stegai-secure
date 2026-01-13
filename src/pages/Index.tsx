@@ -20,31 +20,31 @@ const Index: React.FC = () => {
       <CyberGrid />
       
       {/* Auth Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 backdrop-blur-xl bg-background/60 border-b border-border/30 animate-fade-in">
+      <header className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 py-3 sm:py-4 backdrop-blur-xl bg-background/60 border-b border-border/30 animate-fade-in">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 group cursor-pointer hover-scale">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow duration-300">
-              <span className="text-primary-foreground font-mono font-bold text-sm">S</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow duration-300">
+              <span className="text-primary-foreground font-mono font-bold text-xs sm:text-sm">S</span>
             </div>
-            <span className="font-mono font-bold text-lg text-foreground">StegAI</span>
+            <span className="font-mono font-bold text-base sm:text-lg text-foreground">StegAI</span>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
             
             {loading ? null : user ? (
-              <div className="flex items-center gap-3 animate-fade-in">
-                <span className="text-sm text-muted-foreground hidden sm:block">
+              <div className="flex items-center gap-2 sm:gap-3 animate-fade-in">
+                <span className="text-xs sm:text-sm text-muted-foreground hidden md:block max-w-[150px] truncate">
                   {profile?.display_name || profile?.email || user.email}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={signOut}
-                  className="bg-muted/30 border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-200"
+                  className="bg-muted/30 border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-200 text-xs sm:text-sm px-2 sm:px-3"
                 >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign Out
+                  <LogOut className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Sign Out</span>
                 </Button>
               </div>
             ) : (
@@ -52,10 +52,10 @@ const Index: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-muted/30 border-border/50 hover:bg-primary/20 hover:border-primary/50 hover:scale-105 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20"
+                  className="bg-muted/30 border-border/50 hover:bg-primary/20 hover:border-primary/50 hover:scale-105 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20 text-xs sm:text-sm px-2 sm:px-3"
                 >
-                  <User className="w-4 h-4 mr-2" />
-                  Sign In
+                  <User className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Sign In</span>
                 </Button>
               </Link>
             )}
@@ -63,21 +63,21 @@ const Index: React.FC = () => {
         </div>
       </header>
       
-      <div className="relative z-10 pt-20">
-        <div className="max-w-7xl mx-auto px-6">
+      <div className="relative z-10 pt-16 sm:pt-20">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6">
           {/* Hero Section */}
           <HeroSection />
           
           {/* Main Grid Layout */}
-          <div className="grid lg:grid-cols-3 gap-6 mb-10">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-10">
             {/* Left Column - Workspace */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6 order-2 lg:order-1">
             {/* Metrics Dashboard */}
               <section className="animate-fade-in" style={{ animationDelay: '100ms' }}>
-                <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
+                <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   Performance Metrics
                 </h2>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                   <div className="animate-fade-in" style={{ animationDelay: '150ms' }}>
                     <MetricCard
                       label="PSNR Value"
@@ -122,7 +122,7 @@ const Index: React.FC = () => {
               
               {/* Workspace Panels */}
               <section className="animate-fade-in" style={{ animationDelay: '350ms' }}>
-                <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
+                <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   Workspace
                 </h2>
                 <WorkspacePanel />
@@ -130,7 +130,7 @@ const Index: React.FC = () => {
               
               {/* Visual Comparison */}
               <section className="animate-fade-in" style={{ animationDelay: '400ms' }}>
-                <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
+                <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   Visual Analysis
                 </h2>
                 <ComparisonSlider />
@@ -138,7 +138,7 @@ const Index: React.FC = () => {
               
               {/* Architecture Overview */}
               <section className="animate-fade-in" style={{ animationDelay: '450ms' }}>
-                <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
+                <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   System Architecture
                 </h2>
                 <ArchitectureOverview />
@@ -146,9 +146,9 @@ const Index: React.FC = () => {
             </div>
             
             {/* Right Column - History Sidebar */}
-            <div className="lg:col-span-1 animate-fade-in" style={{ animationDelay: '200ms' }}>
-              <div className="sticky top-24">
-                <h2 className="font-mono text-sm uppercase tracking-wider text-muted-foreground mb-4">
+            <div className="lg:col-span-1 animate-fade-in order-1 lg:order-2" style={{ animationDelay: '200ms' }}>
+              <div className="lg:sticky lg:top-24">
+                <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   Operation Log
                 </h2>
                 <HistorySidebar />
@@ -157,11 +157,11 @@ const Index: React.FC = () => {
           </div>
           
           {/* Footer */}
-          <footer className="text-center py-8 border-t border-border/30">
-            <p className="text-sm text-muted-foreground">
+          <footer className="text-center py-6 sm:py-8 border-t border-border/30">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Built for <span className="text-primary font-mono">FastAPI</span> backend integration
             </p>
-            <p className="text-xs text-muted-foreground/60 mt-2">
+            <p className="text-xs text-muted-foreground/60 mt-1 sm:mt-2">
               © 2024 StegAI • Deep Learning Steganography Platform
             </p>
           </footer>
