@@ -20,30 +20,30 @@ const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
 
   return (
     <GlassCard>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Layers className="w-5 h-5 text-primary" />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 rounded-md sm:rounded-lg bg-primary/10">
+            <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-mono font-semibold text-foreground">Visual Comparison</h3>
+            <h3 className="font-mono font-semibold text-sm sm:text-base text-foreground">Visual Comparison</h3>
             <p className="text-xs text-muted-foreground">Original vs Stego Image</p>
           </div>
         </div>
         
         <button
           onClick={() => setShowDifference(!showDifference)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-xs font-medium transition-all ${
             showDifference 
               ? 'bg-primary text-primary-foreground' 
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
-          {showDifference ? 'Hide' : 'Show'} Difference Map
+          {showDifference ? 'Hide' : 'Show'} Diff
         </button>
       </div>
       
-      <div className="relative aspect-video rounded-xl overflow-hidden border border-border/50 bg-muted/30">
+      <div className="relative aspect-video rounded-lg sm:rounded-xl overflow-hidden border border-border/50 bg-muted/30">
         {showDifference ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div 
@@ -53,8 +53,8 @@ const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
               }}
             />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center p-6 rounded-xl bg-background/80 backdrop-blur-sm">
-                <p className="font-mono text-primary text-lg mb-1">Δ 0.02%</p>
+              <div className="text-center p-4 sm:p-6 rounded-lg sm:rounded-xl bg-background/80 backdrop-blur-sm">
+                <p className="font-mono text-primary text-base sm:text-lg mb-1">Δ 0.02%</p>
                 <p className="text-xs text-muted-foreground">Imperceptible difference</p>
               </div>
             </div>
@@ -82,19 +82,19 @@ const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
             
             {/* Slider Handle */}
             <div 
-              className="absolute top-0 bottom-0 w-1 bg-primary cursor-ew-resize"
+              className="absolute top-0 bottom-0 w-0.5 sm:w-1 bg-primary cursor-ew-resize"
               style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
             >
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-                <ArrowLeftRight className="w-5 h-5 text-primary-foreground" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+                <ArrowLeftRight className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
               </div>
             </div>
             
             {/* Labels */}
-            <div className="absolute top-3 left-3 px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-xs font-mono">
+            <div className="absolute top-2 sm:top-3 left-2 sm:left-3 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-background/80 backdrop-blur-sm text-[10px] sm:text-xs font-mono">
               Original
             </div>
-            <div className="absolute top-3 right-3 px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-xs font-mono">
+            <div className="absolute top-2 sm:top-3 right-2 sm:right-3 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-background/80 backdrop-blur-sm text-[10px] sm:text-xs font-mono">
               Stego
             </div>
           </>
@@ -108,7 +108,7 @@ const ComparisonSlider: React.FC<ComparisonSliderProps> = ({
           max="100"
           value={sliderPosition}
           onChange={handleSliderChange}
-          className="w-full mt-4 accent-primary"
+          className="w-full mt-3 sm:mt-4 accent-primary"
         />
       )}
     </GlassCard>

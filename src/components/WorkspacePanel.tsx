@@ -90,20 +90,20 @@ const WorkspacePanel: React.FC = () => {
   };
 
   return (
-    <div className="grid lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
       {/* Encoder Panel */}
       <GlassCard className={`transition-all duration-300 ${mode === 'encode' ? 'ring-2 ring-primary/50' : ''}`}>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20">
-            <Lock className="w-6 h-6 text-primary" />
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-primary/10 border border-primary/20">
+            <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
           </div>
           <div>
-            <h2 className="font-mono font-bold text-xl text-foreground">Encoder</h2>
-            <p className="text-sm text-muted-foreground">Hide secret data in images</p>
+            <h2 className="font-mono font-bold text-lg sm:text-xl text-foreground">Encoder</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">Hide secret data in images</p>
           </div>
         </div>
         
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
           <ImageUploader 
             label="Cover Image" 
             onImageSelect={setCoverImage}
@@ -112,39 +112,39 @@ const WorkspacePanel: React.FC = () => {
           <ImageHistogram imageFile={coverImage} label="Cover Image Histogram" />
           
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">
+            <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block">
               Secret Message
             </label>
             <Textarea
               placeholder="Enter your secret message to hide..."
               value={secretMessage}
               onChange={(e) => setSecretMessage(e.target.value)}
-              className="min-h-[100px] bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 resize-none font-mono text-sm"
+              className="min-h-[80px] sm:min-h-[100px] bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 resize-none font-mono text-xs sm:text-sm"
             />
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-1 sm:mt-2">
               {secretMessage.length} characters
             </p>
           </div>
           
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
-              <Key className="w-4 h-4" />
+            <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
+              <Key className="w-3 h-3 sm:w-4 sm:h-4" />
               Encryption Key
             </label>
             <div className="relative">
               <Input
                 type={showEncryptionKey ? "text" : "password"}
-                placeholder="Enter encryption key for added security..."
+                placeholder="Enter encryption key..."
                 value={encryptionKey}
                 onChange={(e) => setEncryptionKey(e.target.value)}
-                className="bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 font-mono text-sm pr-10"
+                className="bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 font-mono text-xs sm:text-sm pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowEncryptionKey(!showEncryptionKey)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                {showEncryptionKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showEncryptionKey ? <EyeOff className="w-3 h-3 sm:w-4 sm:h-4" /> : <Eye className="w-3 h-3 sm:w-4 sm:h-4" />}
               </button>
             </div>
             {encryptionKey && (
@@ -178,19 +178,19 @@ const WorkspacePanel: React.FC = () => {
           <Button 
             variant="cyber" 
             size="lg" 
-            className="w-full"
+            className="w-full text-sm sm:text-base"
             onClick={handleEncode}
             disabled={isProcessing}
           >
             {isProcessing ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Processing...
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                <span className="ml-2">Processing...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-5 h-5" />
-                Generate Stego-Image
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="ml-2">Generate Stego-Image</span>
               </>
             )}
           </Button>
@@ -199,17 +199,17 @@ const WorkspacePanel: React.FC = () => {
 
       {/* Decoder Panel */}
       <GlassCard className={`transition-all duration-300 ${mode === 'decode' ? 'ring-2 ring-secondary/50' : ''}`}>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2.5 rounded-xl bg-secondary/10 border border-secondary/20">
-            <Unlock className="w-6 h-6 text-secondary" />
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-secondary/10 border border-secondary/20">
+            <Unlock className="w-5 h-5 sm:w-6 sm:h-6 text-secondary" />
           </div>
           <div>
-            <h2 className="font-mono font-bold text-xl text-foreground">Decoder</h2>
-            <p className="text-sm text-muted-foreground">Reveal hidden content</p>
+            <h2 className="font-mono font-bold text-lg sm:text-xl text-foreground">Decoder</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">Reveal hidden content</p>
           </div>
         </div>
         
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
           <ImageUploader 
             label="Encrypted Image" 
             onImageSelect={setStegoImage}
@@ -218,8 +218,8 @@ const WorkspacePanel: React.FC = () => {
           <ImageHistogram imageFile={stegoImage} label="Stego Image Histogram" />
           
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
-              <Key className="w-4 h-4" />
+            <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
+              <Key className="w-3 h-3 sm:w-4 sm:h-4" />
               Decryption Key
             </label>
             <div className="relative">
@@ -228,17 +228,17 @@ const WorkspacePanel: React.FC = () => {
                 placeholder="Enter decryption key..."
                 value={decryptionKey}
                 onChange={(e) => setDecryptionKey(e.target.value)}
-                className="bg-muted/30 border-border/50 focus:border-secondary/50 focus:ring-secondary/20 font-mono text-sm pr-10"
+                className="bg-muted/30 border-border/50 focus:border-secondary/50 focus:ring-secondary/20 font-mono text-xs sm:text-sm pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowDecryptionKey(!showDecryptionKey)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                {showDecryptionKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showDecryptionKey ? <EyeOff className="w-3 h-3 sm:w-4 sm:h-4" /> : <Eye className="w-3 h-3 sm:w-4 sm:h-4" />}
               </button>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-1 sm:mt-2">
               Enter the key used during encryption
             </p>
           </div>
@@ -246,30 +246,30 @@ const WorkspacePanel: React.FC = () => {
           <Button 
             variant="secondary" 
             size="lg" 
-            className="w-full"
+            className="w-full text-sm sm:text-base"
             onClick={handleDecode}
             disabled={isProcessing}
           >
             {isProcessing ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Decoding...
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                <span className="ml-2">Decoding...</span>
               </>
             ) : (
               <>
-                <Shield className="w-5 h-5" />
-                Reveal Secret
+                <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="ml-2">Reveal Secret</span>
               </>
             )}
           </Button>
           
           {revealedMessage && (
-            <div className="p-4 rounded-xl bg-secondary/10 border border-secondary/20 animate-fade-in">
+            <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/10 border border-secondary/20 animate-fade-in">
               <div className="flex items-center gap-2 mb-2">
-                <Unlock className="w-4 h-4 text-secondary" />
-                <span className="text-sm font-medium text-secondary">Revealed Message</span>
+                <Unlock className="w-3 h-3 sm:w-4 sm:h-4 text-secondary" />
+                <span className="text-xs sm:text-sm font-medium text-secondary">Revealed Message</span>
               </div>
-              <p className="text-foreground font-mono text-sm leading-relaxed">
+              <p className="text-foreground font-mono text-xs sm:text-sm leading-relaxed">
                 {revealedMessage}
               </p>
             </div>
