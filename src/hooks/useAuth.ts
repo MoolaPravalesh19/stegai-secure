@@ -75,9 +75,14 @@ export const useAuth = () => {
   }, []);
 
   const signOut = async () => {
+    // Avoid noisy 403s: only call backend signOut when a session exists.
     try {
-      await supabase.auth.signOut({ scope: 'local' });
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        await supabase.auth.signOut({ scope: 'local' });
+      }
     } catch (error) {
+      // Even if backend signOut fails (e.g., already logged out), clear local state.
       console.log('SignOut completed with local cleanup');
     }
     setUser(null);
