@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
 const Index: React.FC = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
 
   return (
     <div className="min-h-screen relative">
@@ -35,7 +35,7 @@ const Index: React.FC = () => {
             {loading ? null : user ? (
               <div className="flex items-center gap-3 animate-fade-in">
                 <span className="text-sm text-muted-foreground hidden sm:block">
-                  {user.email}
+                  {profile?.display_name || profile?.email || user.email}
                 </span>
                 <Button
                   variant="outline"
