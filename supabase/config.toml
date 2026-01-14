@@ -1,1 +1,7 @@
-project_id = "ulzfwccoarvbvmrekcgx"
+project_id = "ychweaodzghxpepvozub"
+
+[functions.steganography-encode]
+verify_jwt = false
+
+[functions.steganography-decode]
+verify_jwt = false
