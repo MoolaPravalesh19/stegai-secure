@@ -17,6 +17,7 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   // Fetch user profile from database
   const fetchProfile = async (userId: string) => {
@@ -39,40 +40,68 @@ export const useAuth = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      async (event, currentSession) => {
+        if (!isMounted) return;
         
-        if (session?.user) {
-          // Fetch profile from database
-          const userProfile = await fetchProfile(session.user.id);
-          setProfile(userProfile);
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        
+        if (currentSession?.user) {
+          // Use setTimeout to avoid Supabase deadlock
+          setTimeout(async () => {
+            if (!isMounted) return;
+            const userProfile = await fetchProfile(currentSession.user.id);
+            if (isMounted) {
+              setProfile(userProfile);
+            }
+          }, 0);
         } else {
           setProfile(null);
         }
         
-        setLoading(false);
+        if (initialized) {
+          setLoading(false);
+        }
       }
     );
 
     // Then check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Fetch profile from database
-        const userProfile = await fetchProfile(session.user.id);
-        setProfile(userProfile);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        
+        if (currentSession?.user) {
+          const userProfile = await fetchProfile(currentSession.user.id);
+          if (isMounted) {
+            setProfile(userProfile);
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        if (isMounted) {
+          setInitialized(true);
+          setLoading(false);
+        }
       }
-      
-      setLoading(false);
-    });
+    };
 
-    return () => subscription.unsubscribe();
-  }, []);
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [initialized]);
 
   const signOut = async () => {
     // Avoid noisy 403s: only call backend signOut when a session exists.
