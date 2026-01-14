@@ -32,7 +32,9 @@ const Index: React.FC = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
             
-            {loading ? null : user ? (
+            {loading ? (
+              <div className="w-20 h-8 bg-muted/30 rounded-md animate-pulse" />
+            ) : user ? (
               <div className="flex items-center gap-2 sm:gap-3 animate-fade-in">
                 <span className="text-xs sm:text-sm text-muted-foreground hidden md:block max-w-[150px] truncate">
                   {profile?.display_name || profile?.email || user.email}
@@ -48,7 +50,7 @@ const Index: React.FC = () => {
                 </Button>
               </div>
             ) : (
-              <Link to="/auth">
+              <Link to="/auth" className="animate-fade-in">
                 <Button
                   variant="outline"
                   size="sm"
