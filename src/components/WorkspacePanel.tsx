@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Unlock, Shield, Loader2, Sparkles, Key, Eye, EyeOff } from 'lucide-react';
+import { Lock, Unlock, Shield, Loader2, Sparkles, Key, Eye, EyeOff, Download } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
 import ImageHistogram from './ImageHistogram';
@@ -7,8 +7,15 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 type Mode = 'encode' | 'decode';
+
+interface EncodingMetrics {
+  psnrValue: number;
+  ssimScore: number;
+  encodingTimeMs: number;
+}
 
 const WorkspacePanel: React.FC = () => {
   const [mode, setMode] = useState<Mode>('encode');
@@ -21,6 +28,8 @@ const WorkspacePanel: React.FC = () => {
   const [stegoImage, setStegoImage] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [revealedMessage, setRevealedMessage] = useState<string | null>(null);
+  const [generatedStegoUrl, setGeneratedStegoUrl] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<EncodingMetrics | null>(null);
 
   const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
     if (!password) return { score: 0, label: '', color: '' };
@@ -56,15 +65,63 @@ const WorkspacePanel: React.FC = () => {
       return;
     }
 
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to encode messages.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsProcessing(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsProcessing(false);
-    
-    toast({
-      title: "Encoding Complete!",
-      description: "Your stego-image has been generated successfully.",
-    });
+    setGeneratedStegoUrl(null);
+    setMetrics(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', coverImage);
+      formData.append('message', secretMessage);
+      if (encryptionKey) {
+        formData.append('encryptionKey', encryptionKey);
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/steganography-encode`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Encoding failed');
+      }
+
+      setGeneratedStegoUrl(result.stegoImageUrl);
+      setMetrics(result.metrics);
+      
+      toast({
+        title: "Encoding Complete!",
+        description: `Stego-image generated in ${result.metrics.encodingTimeMs}ms. PSNR: ${result.metrics.psnrValue}dB`,
+      });
+    } catch (error) {
+      console.error('Encode error:', error);
+      toast({
+        title: "Encoding Failed",
+        description: error instanceof Error ? error.message : 'An error occurred during encoding.',
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleDecode = async () => {
@@ -77,16 +134,71 @@ const WorkspacePanel: React.FC = () => {
       return;
     }
 
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to decode messages.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsProcessing(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setRevealedMessage("This is the hidden secret message that was encoded in the image using neural network-based steganography.");
-    setIsProcessing(false);
-    
-    toast({
-      title: "Decoding Complete!",
-      description: "Hidden message has been revealed.",
-    });
+    setRevealedMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', stegoImage);
+      if (decryptionKey) {
+        formData.append('decryptionKey', decryptionKey);
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/steganography-decode`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Decoding failed');
+      }
+
+      setRevealedMessage(result.message);
+      
+      toast({
+        title: "Decoding Complete!",
+        description: `Hidden message revealed in ${result.decodingTimeMs}ms.`,
+      });
+    } catch (error) {
+      console.error('Decode error:', error);
+      toast({
+        title: "Decoding Failed",
+        description: error instanceof Error ? error.message : 'An error occurred during decoding.',
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDownloadStego = () => {
+    if (generatedStegoUrl) {
+      const link = document.createElement('a');
+      link.href = generatedStegoUrl;
+      link.download = `stego_image_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (
@@ -194,6 +306,48 @@ const WorkspacePanel: React.FC = () => {
               </>
             )}
           </Button>
+
+          {/* Generated Stego Image Result */}
+          {generatedStegoUrl && (
+            <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-primary/10 border border-primary/20 animate-fade-in space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                  <span className="text-xs sm:text-sm font-medium text-primary">Stego-Image Generated</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadStego}
+                  className="text-xs"
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Download
+                </Button>
+              </div>
+              <img 
+                src={generatedStegoUrl} 
+                alt="Generated stego image" 
+                className="w-full h-32 sm:h-40 object-cover rounded-lg border border-border/50"
+              />
+              {metrics && (
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 rounded-lg bg-background/50">
+                    <p className="text-xs text-muted-foreground">PSNR</p>
+                    <p className="text-sm font-mono font-bold text-primary">{metrics.psnrValue} dB</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-background/50">
+                    <p className="text-xs text-muted-foreground">SSIM</p>
+                    <p className="text-sm font-mono font-bold text-primary">{metrics.ssimScore}</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-background/50">
+                    <p className="text-xs text-muted-foreground">Time</p>
+                    <p className="text-sm font-mono font-bold text-primary">{metrics.encodingTimeMs}ms</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </GlassCard>
 
