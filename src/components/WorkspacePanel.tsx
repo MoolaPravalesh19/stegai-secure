@@ -1,47 +1,76 @@
-import React, { useState } from 'react';
-import { Lock, Unlock, Shield, Loader2, Sparkles, Key, Eye, EyeOff, Download } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Lock, Unlock, Loader2, Sparkles, Key, Eye, EyeOff, Download, ImageIcon } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
-import ImageHistogram from './ImageHistogram';
 import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-
-type Mode = 'encode' | 'decode';
-
-interface EncodingMetrics {
-  psnrValue: number;
-  ssimScore: number;
-  encodingTimeMs: number;
-}
 
 const WorkspacePanel: React.FC = () => {
-  const [mode, setMode] = useState<Mode>('encode');
-  const [coverImage, setCoverImage] = useState<File | null>(null);
-  const [secretMessage, setSecretMessage] = useState('');
+  const [sourceImage, setSourceImage] = useState<File | null>(null);
+  const [encryptedImage, setEncryptedImage] = useState<File | null>(null);
   const [encryptionKey, setEncryptionKey] = useState('');
   const [decryptionKey, setDecryptionKey] = useState('');
   const [showEncryptionKey, setShowEncryptionKey] = useState(false);
   const [showDecryptionKey, setShowDecryptionKey] = useState(false);
-  const [stegoImage, setStegoImage] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [revealedMessage, setRevealedMessage] = useState<string | null>(null);
-  const [generatedStegoUrl, setGeneratedStegoUrl] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<EncodingMetrics | null>(null);
+  const [encryptedImageUrl, setEncryptedImageUrl] = useState<string | null>(null);
+  const [decryptedImageUrl, setDecryptedImageUrl] = useState<string | null>(null);
+  const [encryptionTime, setEncryptionTime] = useState<number | null>(null);
+  const [decryptionTime, setDecryptionTime] = useState<number | null>(null);
+
+  // Generate seed from key using simple hash
+  const generateSeed = (key: string): number => {
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+      const char = key.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash) || 12345;
+  };
+
+  // Seeded random number generator
+  const seededRandom = (seed: number) => {
+    let s = seed;
+    return () => {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      return s / 0x7fffffff;
+    };
+  };
+
+  // Fisher-Yates shuffle with seed
+  const shuffleArray = (array: number[], seed: number): number[] => {
+    const shuffled = [...array];
+    const random = seededRandom(seed);
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // Reverse shuffle (unshuffle)
+  const unshuffleArray = (array: Uint8ClampedArray, shuffleMap: number[]): Uint8ClampedArray => {
+    const result = new Uint8ClampedArray(array.length);
+    for (let i = 0; i < shuffleMap.length; i++) {
+      const srcIdx = shuffleMap[i] * 4;
+      const destIdx = i * 4;
+      result[destIdx] = array[srcIdx];
+      result[destIdx + 1] = array[srcIdx + 1];
+      result[destIdx + 2] = array[srcIdx + 2];
+      result[destIdx + 3] = array[srcIdx + 3];
+    }
+    return result;
+  };
 
   const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
     if (!password) return { score: 0, label: '', color: '' };
     
     let score = 0;
-    
-    // Length checks
     if (password.length >= 8) score += 1;
     if (password.length >= 12) score += 1;
     if (password.length >= 16) score += 1;
-    
-    // Character variety checks
     if (/[a-z]/.test(password)) score += 1;
     if (/[A-Z]/.test(password)) score += 1;
     if (/[0-9]/.test(password)) score += 1;
@@ -55,188 +84,204 @@ const WorkspacePanel: React.FC = () => {
 
   const keyStrength = getPasswordStrength(encryptionKey);
 
-  const handleEncode = async () => {
-    if (!coverImage || !secretMessage) {
-      toast({
-        title: "Missing inputs",
-        description: "Please upload a cover image and enter a secret message.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if user is authenticated
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to encode messages.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-    setGeneratedStegoUrl(null);
-    setMetrics(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('image', coverImage);
-      formData.append('message', secretMessage);
-      if (encryptionKey) {
-        formData.append('encryptionKey', encryptionKey);
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/steganography-encode`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: formData,
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Encoding failed');
-      }
-
-      setGeneratedStegoUrl(result.stegoImageUrl);
-      setMetrics(result.metrics);
-      
-      toast({
-        title: "Encoding Complete!",
-        description: `Stego-image generated in ${result.metrics.encodingTimeMs}ms. PSNR: ${result.metrics.psnrValue}dB`,
-      });
-    } catch (error) {
-      console.error('Encode error:', error);
-      toast({
-        title: "Encoding Failed",
-        description: error instanceof Error ? error.message : 'An error occurred during encoding.',
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleDecode = async () => {
-    if (!stegoImage) {
+  const handleEncrypt = useCallback(async () => {
+    if (!sourceImage) {
       toast({
         title: "Missing input",
-        description: "Please upload an encrypted image to decode.",
+        description: "Please upload an image to encrypt.",
         variant: "destructive"
       });
       return;
     }
 
-    // Check if user is authenticated
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    if (!encryptionKey) {
       toast({
-        title: "Authentication required",
-        description: "Please sign in to decode messages.",
+        title: "Missing key",
+        description: "Please enter an encryption key.",
         variant: "destructive"
       });
       return;
     }
 
     setIsProcessing(true);
-    setRevealedMessage(null);
+    setEncryptedImageUrl(null);
+    setEncryptionTime(null);
+
+    const startTime = performance.now();
 
     try {
-      const formData = new FormData();
-      formData.append('image', stegoImage);
-      if (decryptionKey) {
-        formData.append('decryptionKey', decryptionKey);
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/steganography-decode`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: formData,
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Decoding failed');
-      }
-
-      setRevealedMessage(result.message);
+      const img = new Image();
+      const imageUrl = URL.createObjectURL(sourceImage);
       
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = imageUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+      const pixelCount = pixels.length / 4;
+
+      // Create shuffle map
+      const seed = generateSeed(encryptionKey);
+      const indices = Array.from({ length: pixelCount }, (_, i) => i);
+      const shuffledIndices = shuffleArray(indices, seed);
+
+      // Shuffle pixels
+      const newPixels = new Uint8ClampedArray(pixels.length);
+      for (let i = 0; i < pixelCount; i++) {
+        const srcIdx = i * 4;
+        const destIdx = shuffledIndices[i] * 4;
+        newPixels[destIdx] = pixels[srcIdx];
+        newPixels[destIdx + 1] = pixels[srcIdx + 1];
+        newPixels[destIdx + 2] = pixels[srcIdx + 2];
+        newPixels[destIdx + 3] = pixels[srcIdx + 3];
+      }
+
+      // Create encrypted image
+      const newImageData = new ImageData(newPixels, canvas.width, canvas.height);
+      ctx.putImageData(newImageData, 0, 0);
+
+      const encryptedUrl = canvas.toDataURL('image/png');
+      setEncryptedImageUrl(encryptedUrl);
+
+      const endTime = performance.now();
+      setEncryptionTime(Math.round(endTime - startTime));
+
+      URL.revokeObjectURL(imageUrl);
+
       toast({
-        title: "Decoding Complete!",
-        description: `Hidden message revealed in ${result.decodingTimeMs}ms.`,
+        title: "Encryption Complete!",
+        description: `Image encrypted in ${Math.round(endTime - startTime)}ms`,
       });
     } catch (error) {
-      console.error('Decode error:', error);
+      console.error('Encrypt error:', error);
       toast({
-        title: "Decoding Failed",
-        description: error instanceof Error ? error.message : 'An error occurred during decoding.',
+        title: "Encryption Failed",
+        description: error instanceof Error ? error.message : 'An error occurred during encryption.',
         variant: "destructive"
       });
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [sourceImage, encryptionKey]);
 
-  const handleDownloadStego = () => {
-    if (generatedStegoUrl) {
-      const link = document.createElement('a');
-      link.href = generatedStegoUrl;
-      link.download = `stego_image_${Date.now()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const handleDecrypt = useCallback(async () => {
+    if (!encryptedImage) {
+      toast({
+        title: "Missing input",
+        description: "Please upload an encrypted image to decrypt.",
+        variant: "destructive"
+      });
+      return;
     }
+
+    if (!decryptionKey) {
+      toast({
+        title: "Missing key",
+        description: "Please enter the decryption key.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    setDecryptedImageUrl(null);
+    setDecryptionTime(null);
+
+    const startTime = performance.now();
+
+    try {
+      const img = new Image();
+      const imageUrl = URL.createObjectURL(encryptedImage);
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = imageUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+      const pixelCount = pixels.length / 4;
+
+      // Create shuffle map (same as encryption)
+      const seed = generateSeed(decryptionKey);
+      const indices = Array.from({ length: pixelCount }, (_, i) => i);
+      const shuffledIndices = shuffleArray(indices, seed);
+
+      // Unshuffle pixels (reverse the mapping)
+      const newPixels = unshuffleArray(pixels, shuffledIndices);
+
+      // Create decrypted image
+      const newImageData = new ImageData(new Uint8ClampedArray(newPixels), canvas.width, canvas.height);
+      ctx.putImageData(newImageData, 0, 0);
+
+      const decryptedUrl = canvas.toDataURL('image/png');
+      setDecryptedImageUrl(decryptedUrl);
+
+      const endTime = performance.now();
+      setDecryptionTime(Math.round(endTime - startTime));
+
+      URL.revokeObjectURL(imageUrl);
+
+      toast({
+        title: "Decryption Complete!",
+        description: `Image decrypted in ${Math.round(endTime - startTime)}ms`,
+      });
+    } catch (error) {
+      console.error('Decrypt error:', error);
+      toast({
+        title: "Decryption Failed",
+        description: error instanceof Error ? error.message : 'An error occurred during decryption.',
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [encryptedImage, decryptionKey]);
+
+  const handleDownload = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-      {/* Encoder Panel */}
-      <GlassCard className={`transition-all duration-300 ${mode === 'encode' ? 'ring-2 ring-primary/50' : ''}`}>
+      {/* Encryption Panel */}
+      <GlassCard className="transition-all duration-300">
         <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
           <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-primary/10 border border-primary/20">
             <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
           </div>
           <div>
-            <h2 className="font-mono font-bold text-lg sm:text-xl text-foreground">Encoder</h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">Hide secret data in images</p>
+            <h2 className="font-mono font-bold text-lg sm:text-xl text-foreground">Encrypt Image</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">Shuffle pixels to encrypt</p>
           </div>
         </div>
         
         <div className="space-y-4 sm:space-y-5">
           <ImageUploader 
-            label="Cover Image" 
-            onImageSelect={setCoverImage}
+            label="Source Image" 
+            onImageSelect={setSourceImage}
           />
-          
-          <ImageHistogram imageFile={coverImage} label="Cover Image Histogram" />
-          
-          <div>
-            <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block">
-              Secret Message
-            </label>
-            <Textarea
-              placeholder="Enter your secret message to hide..."
-              value={secretMessage}
-              onChange={(e) => setSecretMessage(e.target.value)}
-              className="min-h-[80px] sm:min-h-[100px] bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 resize-none font-mono text-xs sm:text-sm"
-            />
-            <p className="text-xs text-muted-foreground mt-1 sm:mt-2">
-              {secretMessage.length} characters
-            </p>
-          </div>
           
           <div>
             <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
@@ -280,45 +325,43 @@ const WorkspacePanel: React.FC = () => {
                 </p>
               </div>
             )}
-            {!encryptionKey && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Optional: Add a key to encrypt your message before hiding
-              </p>
-            )}
           </div>
           
           <Button 
             variant="cyber" 
             size="lg" 
             className="w-full text-sm sm:text-base"
-            onClick={handleEncode}
-            disabled={isProcessing}
+            onClick={handleEncrypt}
+            disabled={isProcessing || !sourceImage || !encryptionKey}
           >
             {isProcessing ? (
               <>
                 <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                <span className="ml-2">Processing...</span>
+                <span className="ml-2">Encrypting...</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="ml-2">Generate Stego-Image</span>
+                <span className="ml-2">Encrypt Image</span>
               </>
             )}
           </Button>
 
-          {/* Generated Stego Image Result */}
-          {generatedStegoUrl && (
+          {/* Encrypted Image Result */}
+          {encryptedImageUrl && (
             <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-primary/10 border border-primary/20 animate-fade-in space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Lock className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-medium text-primary">Stego-Image Generated</span>
+                  <span className="text-xs sm:text-sm font-medium text-primary">Encrypted Image</span>
+                  {encryptionTime && (
+                    <span className="text-xs text-muted-foreground">({encryptionTime}ms)</span>
+                  )}
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleDownloadStego}
+                  onClick={() => handleDownload(encryptedImageUrl, `encrypted_${Date.now()}.png`)}
                   className="text-xs"
                 >
                   <Download className="w-3 h-3 mr-1" />
@@ -326,50 +369,32 @@ const WorkspacePanel: React.FC = () => {
                 </Button>
               </div>
               <img 
-                src={generatedStegoUrl} 
-                alt="Generated stego image" 
+                src={encryptedImageUrl} 
+                alt="Encrypted image" 
                 className="w-full h-32 sm:h-40 object-cover rounded-lg border border-border/50"
               />
-              {metrics && (
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="p-2 rounded-lg bg-background/50">
-                    <p className="text-xs text-muted-foreground">PSNR</p>
-                    <p className="text-sm font-mono font-bold text-primary">{metrics.psnrValue} dB</p>
-                  </div>
-                  <div className="p-2 rounded-lg bg-background/50">
-                    <p className="text-xs text-muted-foreground">SSIM</p>
-                    <p className="text-sm font-mono font-bold text-primary">{metrics.ssimScore}</p>
-                  </div>
-                  <div className="p-2 rounded-lg bg-background/50">
-                    <p className="text-xs text-muted-foreground">Time</p>
-                    <p className="text-sm font-mono font-bold text-primary">{metrics.encodingTimeMs}ms</p>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
       </GlassCard>
 
-      {/* Decoder Panel */}
-      <GlassCard className={`transition-all duration-300 ${mode === 'decode' ? 'ring-2 ring-secondary/50' : ''}`}>
+      {/* Decryption Panel */}
+      <GlassCard className="transition-all duration-300">
         <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
           <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-secondary/10 border border-secondary/20">
             <Unlock className="w-5 h-5 sm:w-6 sm:h-6 text-secondary" />
           </div>
           <div>
-            <h2 className="font-mono font-bold text-lg sm:text-xl text-foreground">Decoder</h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">Reveal hidden content</p>
+            <h2 className="font-mono font-bold text-lg sm:text-xl text-foreground">Decrypt Image</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">Restore original image</p>
           </div>
         </div>
         
         <div className="space-y-4 sm:space-y-5">
           <ImageUploader 
             label="Encrypted Image" 
-            onImageSelect={setStegoImage}
+            onImageSelect={setEncryptedImage}
           />
-          
-          <ImageHistogram imageFile={stegoImage} label="Stego Image Histogram" />
           
           <div>
             <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
@@ -393,7 +418,7 @@ const WorkspacePanel: React.FC = () => {
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-1 sm:mt-2">
-              Enter the key used during encryption
+              Enter the same key used during encryption
             </p>
           </div>
           
@@ -401,31 +426,48 @@ const WorkspacePanel: React.FC = () => {
             variant="secondary" 
             size="lg" 
             className="w-full text-sm sm:text-base"
-            onClick={handleDecode}
-            disabled={isProcessing}
+            onClick={handleDecrypt}
+            disabled={isProcessing || !encryptedImage || !decryptionKey}
           >
             {isProcessing ? (
               <>
                 <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                <span className="ml-2">Decoding...</span>
+                <span className="ml-2">Decrypting...</span>
               </>
             ) : (
               <>
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="ml-2">Reveal Secret</span>
+                <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="ml-2">Decrypt Image</span>
               </>
             )}
           </Button>
           
-          {revealedMessage && (
-            <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/10 border border-secondary/20 animate-fade-in">
-              <div className="flex items-center gap-2 mb-2">
-                <Unlock className="w-3 h-3 sm:w-4 sm:h-4 text-secondary" />
-                <span className="text-xs sm:text-sm font-medium text-secondary">Revealed Message</span>
+          {/* Decrypted Image Result */}
+          {decryptedImageUrl && (
+            <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/10 border border-secondary/20 animate-fade-in space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Unlock className="w-3 h-3 sm:w-4 sm:h-4 text-secondary" />
+                  <span className="text-xs sm:text-sm font-medium text-secondary">Decrypted Image</span>
+                  {decryptionTime && (
+                    <span className="text-xs text-muted-foreground">({decryptionTime}ms)</span>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownload(decryptedImageUrl, `decrypted_${Date.now()}.png`)}
+                  className="text-xs"
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Download
+                </Button>
               </div>
-              <p className="text-foreground font-mono text-xs sm:text-sm leading-relaxed">
-                {revealedMessage}
-              </p>
+              <img 
+                src={decryptedImageUrl} 
+                alt="Decrypted image" 
+                className="w-full h-32 sm:h-40 object-cover rounded-lg border border-border/50"
+              />
             </div>
           )}
         </div>
