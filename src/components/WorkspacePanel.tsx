@@ -57,9 +57,21 @@ const WorkspacePanel: React.FC = () => {
 
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
+
+      // IMPORTANT: Haar DWT implementation assumes even dimensions.
+      // If width/height are odd, the last row/col gets dropped → extraction becomes garbage.
+      const evenWidth = img.width - (img.width % 2);
+      const evenHeight = img.height - (img.height % 2);
+      canvas.width = evenWidth;
+      canvas.height = evenHeight;
+      ctx.drawImage(img, 0, 0, evenWidth, evenHeight);
+
+      if (evenWidth !== img.width || evenHeight !== img.height) {
+        toast({
+          title: 'Adjusted image size',
+          description: `For DWT stability, image was cropped to ${evenWidth}×${evenHeight}.`,
+        });
+      }
 
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       
@@ -120,9 +132,13 @@ const WorkspacePanel: React.FC = () => {
 
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
+
+      // Keep the same even-dimension rule as embedding.
+      const evenWidth = img.width - (img.width % 2);
+      const evenHeight = img.height - (img.height % 2);
+      canvas.width = evenWidth;
+      canvas.height = evenHeight;
+      ctx.drawImage(img, 0, 0, evenWidth, evenHeight);
 
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       
