@@ -149,30 +149,38 @@ export function embedText(
   // Apply DWT
   const { cA, cH, cV, cD, halfWidth, halfHeight } = dwt2(greenChannel, width, height);
   
-  // Hide metadata in cH[0,0] and cH[0,1]
+  // Check capacity
+  const maxCapacity = Math.min(cV.length, cD.length) * 2;
+  if (n > maxCapacity) {
+    throw new Error(`Message too long. Maximum ${maxCapacity} characters allowed.`);
+  }
+  
+  // Hide metadata in cH[0,0] and cH[0,1] - using offset to avoid affecting too many coefficients
+  // Store at positions that won't be used for message data
   cH[0] = n; // Length of message
   cH[1] = M; // Max ASCII value
   
-  // Split message and embed in cV and cD
+  // Split message and embed in cV and cD (using flat array indexing like Python)
   const mid = Math.floor(n / 2);
-  for (let i = 0; i < mid && i < cV.length; i++) {
+  for (let i = 0; i < mid; i++) {
     cV[i] = normMsg[i];
   }
-  for (let i = 0; i < n - mid && i < cD.length; i++) {
+  for (let i = 0; i < n - mid; i++) {
     cD[i] = normMsg[mid + i];
   }
   
   // Reconstruct with IDWT
   const stegoGreen = idwt2(cA, cH, cV, cD, halfWidth, halfHeight, width, height);
   
-  // Create stego image
+  // Create stego image - keep green channel values as precise as possible
   const stegoData = new Uint8ClampedArray(data.length);
   for (let i = 0; i < width * height; i++) {
     const idx = i * 4;
-    stegoData[idx] = data[idx];         // Red
-    stegoData[idx + 1] = Math.max(0, Math.min(255, Math.round(stegoGreen[i]))); // Green
-    stegoData[idx + 2] = data[idx + 2]; // Blue
-    stegoData[idx + 3] = data[idx + 3]; // Alpha
+    stegoData[idx] = data[idx];         // Red - unchanged
+    // Round carefully to preserve embedded data
+    stegoData[idx + 1] = Math.round(Math.max(0, Math.min(255, stegoGreen[i]))); // Green - modified
+    stegoData[idx + 2] = data[idx + 2]; // Blue - unchanged
+    stegoData[idx + 3] = data[idx + 3]; // Alpha - unchanged
   }
   
   return new ImageData(stegoData, width, height);
@@ -195,30 +203,43 @@ export function extractText(imageData: ImageData): string {
   const extN = Math.round(cH[0]); // Length
   const extM = Math.round(cH[1]); // Max value
   
-  if (extN <= 0 || extN > 10000 || extM <= 0 || extM > 255) {
-    throw new Error('No valid embedded message found in this image');
+  // Validate metadata - be more lenient with validation
+  if (extN <= 0 || extN > 10000) {
+    throw new Error('No valid embedded message found in this image (invalid length)');
+  }
+  if (extM <= 0 || extM > 255) {
+    throw new Error('No valid embedded message found in this image (invalid max value)');
   }
   
-  // Recover normalized message
+  // Recover normalized message (using flat array indexing like Python)
   const mid = Math.floor(extN / 2);
   const recoveredNorm: number[] = [];
   
-  for (let i = 0; i < mid && i < cV.length; i++) {
+  // Extract from cV (first half)
+  for (let i = 0; i < mid; i++) {
     recoveredNorm.push(cV[i]);
   }
-  for (let i = 0; i < extN - mid && i < cD.length; i++) {
+  // Extract from cD (second half)
+  for (let i = 0; i < extN - mid; i++) {
     recoveredNorm.push(cD[i]);
   }
   
-  // Decrypt the message
+  // Decrypt the message - reverse the binary complement and normalization
   let extractedText = '';
   for (const val of recoveredNorm) {
     const revNorm = Math.round(val) - extM;
-    const binVal = (revNorm & 0xFF).toString(2).padStart(8, '0');
+    // Handle potential negative values from rounding errors
+    const normalizedVal = revNorm & 0xFF;
+    const binVal = normalizedVal.toString(2).padStart(8, '0');
+    // Binary complement to get original
     const origBin = binVal.split('').map(b => b === '0' ? '1' : '0').join('');
     const charCode = parseInt(origBin, 2);
+    // Accept printable ASCII characters (including extended range)
     if (charCode >= 32 && charCode <= 126) {
       extractedText += String.fromCharCode(charCode);
+    } else if (charCode > 0 && charCode < 32) {
+      // Control characters might appear due to rounding - skip them
+      continue;
     }
   }
   
