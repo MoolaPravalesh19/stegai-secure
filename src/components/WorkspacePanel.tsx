@@ -8,10 +8,8 @@ import { Textarea } from './ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 
-const IMG_SIZE = 256;
-
-// Text to binary tensor (matching Python implementation)
-const textToTensor = (text: string, size: number = IMG_SIZE): number[] => {
+// Text to binary tensor for given pixel count
+const textToTensor = (text: string, pixelCount: number): number[] => {
   let bits = '';
   for (const char of text) {
     bits += char.charCodeAt(0).toString(2).padStart(8, '0');
@@ -19,8 +17,12 @@ const textToTensor = (text: string, size: number = IMG_SIZE): number[] => {
   bits += '00000000'; // End marker
   
   const bitArray = bits.split('').map(b => parseInt(b));
-  const paddedBits = [...bitArray, ...new Array(size * size - bitArray.length).fill(0)];
-  return paddedBits.slice(0, size * size);
+  
+  // Pad with zeros if needed
+  const paddingNeeded = Math.max(0, pixelCount - bitArray.length);
+  const paddedBits = [...bitArray, ...new Array(paddingNeeded).fill(0)];
+  
+  return paddedBits.slice(0, pixelCount);
 };
 
 // Binary tensor to text (matching Python implementation)
@@ -130,8 +132,10 @@ const encodeWithKey = (
   width: number,
   height: number
 ): Uint8ClampedArray => {
+  const pixelCount = width * height;
+  
   // Convert message to bits
-  let messageBits = textToTensor(message, width * height);
+  let messageBits = textToTensor(message, pixelCount);
   
   // XOR encrypt bits with key-derived pattern
   if (key) {
