@@ -44,6 +44,12 @@
     --cyber-green: 150 60% 45%;
     --glass-bg: 220 20% 98%;
     --glass-border: 220 15% 85%;
+    
+    /* Status colors */
+    --warning: 45 90% 50%;
+    --warning-foreground: 45 90% 15%;
+    --success: 150 60% 45%;
+    --success-foreground: 0 0% 100%;
 
     /* Gradients */
     --gradient-cyber: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--cyber-purple)) 100%);
@@ -102,6 +108,12 @@
     --cyber-green: 150 65% 50%;
     --glass-bg: 225 25% 10%;
     --glass-border: 225 20% 20%;
+    
+    /* Dark status colors */
+    --warning: 45 90% 50%;
+    --warning-foreground: 45 90% 15%;
+    --success: 150 65% 50%;
+    --success-foreground: 225 30% 6%;
 
     /* Dark gradients */
     --gradient-cyber: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
