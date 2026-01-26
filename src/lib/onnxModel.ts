@@ -1,4 +1,5 @@
 import * as ort from 'onnxruntime-web';
+import { supabase } from '@/integrations/supabase/client';
 
 // Configure ONNX Runtime
 ort.env.wasm.numThreads = 1;
@@ -6,18 +7,19 @@ ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/di
 
 let hidingSession: ort.InferenceSession | null = null;
 let revealSession: ort.InferenceSession | null = null;
+let isLoadingDefaults = false;
+let defaultModelsChecked = false;
 
 const IMG_SIZE = 256;
+const DEFAULT_HIDING_MODEL = 'hiding_net.onnx';
+const DEFAULT_REVEAL_MODEL = 'reveal_net.onnx';
 
-// Load models from uploaded files
-export const loadModelsFromFiles = async (
-  hidingFile: File,
-  revealFile: File
+// Load models from ArrayBuffer
+const loadModelsFromBuffers = async (
+  hidingBuffer: ArrayBuffer,
+  revealBuffer: ArrayBuffer
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const hidingBuffer = await hidingFile.arrayBuffer();
-    const revealBuffer = await revealFile.arrayBuffer();
-    
     hidingSession = await ort.InferenceSession.create(hidingBuffer, {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all'
@@ -43,9 +45,123 @@ export const loadModelsFromFiles = async (
   }
 };
 
+// Load models from uploaded files
+export const loadModelsFromFiles = async (
+  hidingFile: File,
+  revealFile: File
+): Promise<{ success: boolean; error?: string }> => {
+  const hidingBuffer = await hidingFile.arrayBuffer();
+  const revealBuffer = await revealFile.arrayBuffer();
+  return loadModelsFromBuffers(hidingBuffer, revealBuffer);
+};
+
+// Upload models to storage as defaults
+export const uploadDefaultModels = async (
+  hidingFile: File,
+  revealFile: File
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Upload hiding model
+    const { error: hidingError } = await supabase.storage
+      .from('onnx-models')
+      .upload(DEFAULT_HIDING_MODEL, hidingFile, { 
+        upsert: true,
+        contentType: 'application/octet-stream'
+      });
+    
+    if (hidingError) throw hidingError;
+
+    // Upload reveal model
+    const { error: revealError } = await supabase.storage
+      .from('onnx-models')
+      .upload(DEFAULT_REVEAL_MODEL, revealFile, { 
+        upsert: true,
+        contentType: 'application/octet-stream'
+      });
+    
+    if (revealError) throw revealError;
+
+    console.log('Default models uploaded successfully!');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to upload default models:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error uploading models'
+    };
+  }
+};
+
+// Load default models from storage
+export const loadDefaultModels = async (): Promise<{ success: boolean; error?: string }> => {
+  if (isLoadingDefaults) {
+    return { success: false, error: 'Already loading models' };
+  }
+  
+  if (areModelsLoaded()) {
+    return { success: true };
+  }
+
+  isLoadingDefaults = true;
+  
+  try {
+    // Get public URLs for models
+    const { data: hidingData } = supabase.storage
+      .from('onnx-models')
+      .getPublicUrl(DEFAULT_HIDING_MODEL);
+    
+    const { data: revealData } = supabase.storage
+      .from('onnx-models')
+      .getPublicUrl(DEFAULT_REVEAL_MODEL);
+
+    // Fetch model files
+    const [hidingResponse, revealResponse] = await Promise.all([
+      fetch(hidingData.publicUrl),
+      fetch(revealData.publicUrl)
+    ]);
+
+    if (!hidingResponse.ok || !revealResponse.ok) {
+      defaultModelsChecked = true;
+      isLoadingDefaults = false;
+      return { 
+        success: false, 
+        error: 'Default models not found in storage' 
+      };
+    }
+
+    const [hidingBuffer, revealBuffer] = await Promise.all([
+      hidingResponse.arrayBuffer(),
+      revealResponse.arrayBuffer()
+    ]);
+
+    const result = await loadModelsFromBuffers(hidingBuffer, revealBuffer);
+    defaultModelsChecked = true;
+    isLoadingDefaults = false;
+    return result;
+  } catch (error) {
+    console.error('Failed to load default models:', error);
+    defaultModelsChecked = true;
+    isLoadingDefaults = false;
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error loading default models'
+    };
+  }
+};
+
 // Check if models are loaded
 export const areModelsLoaded = (): boolean => {
   return hidingSession !== null && revealSession !== null;
+};
+
+// Check if default models check has been performed
+export const hasCheckedDefaultModels = (): boolean => {
+  return defaultModelsChecked;
+};
+
+// Check if currently loading defaults
+export const isLoadingDefaultModels = (): boolean => {
+  return isLoadingDefaults;
 };
 
 // Convert text to binary tensor (matching Python implementation)
