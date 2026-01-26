@@ -3,7 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 // Configure ONNX Runtime
 ort.env.wasm.numThreads = 1;
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
+// ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
+ort.env.wasm.wasmPaths = {
+  'ort-wasm-simd-threaded.wasm': `https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort-wasm-simd-threaded.wasm`,
+  'ort-wasm-simd.wasm': `https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort-wasm-simd.wasm`,
+  'ort-wasm.wasm': `https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort-wasm.wasm`,
+};
 
 let hidingSession: ort.InferenceSession | null = null;
 let revealSession: ort.InferenceSession | null = null;
