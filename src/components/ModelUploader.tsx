@@ -1,21 +1,65 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Check, AlertCircle, Brain, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, Check, AlertCircle, Brain, Loader2, CloudUpload } from 'lucide-react';
 import { Button } from './ui/button';
-import { loadModelsFromFiles, areModelsLoaded } from '@/lib/onnxModel';
+import { 
+  loadModelsFromFiles, 
+  areModelsLoaded, 
+  loadDefaultModels,
+  uploadDefaultModels,
+  hasCheckedDefaultModels,
+  isLoadingDefaultModels
+} from '@/lib/onnxModel';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ModelUploaderProps {
   onModelsLoaded: () => void;
 }
 
 const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
+  const { user } = useAuth();
   const [hidingFile, setHidingFile] = useState<File | null>(null);
   const [revealFile, setRevealFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(areModelsLoaded());
+  const [isCheckingDefaults, setIsCheckingDefaults] = useState(!hasCheckedDefaultModels());
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
   
   const hidingInputRef = useRef<HTMLInputElement>(null);
   const revealInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-load default models on mount
+  useEffect(() => {
+    const checkDefaultModels = async () => {
+      if (areModelsLoaded()) {
+        setIsLoaded(true);
+        setIsCheckingDefaults(false);
+        onModelsLoaded();
+        return;
+      }
+
+      if (hasCheckedDefaultModels() || isLoadingDefaultModels()) {
+        setIsCheckingDefaults(false);
+        return;
+      }
+
+      setIsCheckingDefaults(true);
+      const result = await loadDefaultModels();
+      
+      if (result.success) {
+        setIsLoaded(true);
+        onModelsLoaded();
+        toast({
+          title: "Neural Network Ready! 🧠",
+          description: "Default models loaded automatically",
+        });
+      }
+      
+      setIsCheckingDefaults(false);
+    };
+
+    checkDefaultModels();
+  }, [onModelsLoaded]);
 
   const handleLoadModels = async () => {
     if (!hidingFile || !revealFile) {
@@ -48,6 +92,55 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
     
     setIsLoading(false);
   };
+
+  const handleSaveAsDefaults = async () => {
+    if (!hidingFile || !revealFile) {
+      toast({
+        title: "Missing files",
+        description: "Please upload both model files first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to save default models",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSavingDefaults(true);
+    
+    const result = await uploadDefaultModels(hidingFile, revealFile);
+    
+    if (result.success) {
+      toast({
+        title: "Default Models Saved! ☁️",
+        description: "These models will now load automatically for all visitors",
+      });
+    } else {
+      toast({
+        title: "Failed to save defaults",
+        description: result.error,
+        variant: "destructive"
+      });
+    }
+    
+    setIsSavingDefaults(false);
+  };
+
+  // Show loading state while checking for default models
+  if (isCheckingDefaults) {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+        <Loader2 className="w-5 h-5 text-primary animate-spin" />
+        <span className="text-sm font-medium text-muted-foreground">Loading neural network...</span>
+      </div>
+    );
+  }
 
   if (isLoaded) {
     return (
@@ -137,24 +230,47 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
         </div>
       </div>
       
-      <Button
-        onClick={handleLoadModels}
-        disabled={!hidingFile || !revealFile || isLoading}
-        className="w-full"
-        variant="cyber"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            Loading Models...
-          </>
-        ) : (
-          <>
-            <Brain className="w-4 h-4 mr-2" />
-            Load Neural Network
-          </>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Button
+          onClick={handleLoadModels}
+          disabled={!hidingFile || !revealFile || isLoading}
+          className="flex-1"
+          variant="cyber"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Loading Models...
+            </>
+          ) : (
+            <>
+              <Brain className="w-4 h-4 mr-2" />
+              Load Neural Network
+            </>
+          )}
+        </Button>
+        
+        {user && hidingFile && revealFile && (
+          <Button
+            onClick={handleSaveAsDefaults}
+            disabled={isSavingDefaults || isLoading}
+            variant="outline"
+            className="border-primary/30 hover:border-primary/50"
+          >
+            {isSavingDefaults ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <CloudUpload className="w-4 h-4 mr-2" />
+                Set as Default
+              </>
+            )}
+          </Button>
         )}
-      </Button>
+      </div>
       
       <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
         <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
