@@ -15,6 +15,7 @@ import {
   textToTensor,
   tensorToText
 } from '@/lib/onnxModel';
+import { supabase } from '@/integrations/supabase/client';
 
 // LSB-based encoding (fallback when neural model not loaded)
 const encodeLSB = (
@@ -306,12 +307,45 @@ const WorkspacePanel: React.FC = () => {
 
       URL.revokeObjectURL(imageUrl);
 
+      // Save to history
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('encryption_history').insert({
+          user_id: user.id,
+          operation_type: 'encode',
+          status: 'success',
+          filename: coverImage.name,
+          encoding_time_ms: Math.round(endTime - startTime),
+          psnr_value: psnr,
+          encryption_method: useNeuralNet && modelsReady ? 'Neural' : 'LSB',
+          key_used: !useNeuralNet && encodeKey.length > 0,
+          file_size_bytes: coverImage.size,
+          image_format: coverImage.name.split('.').pop()?.toUpperCase() || 'PNG'
+        });
+      }
+
       toast({
         title: "Encoding Complete! 🎉",
         description: `Message hidden using ${useNeuralNet && modelsReady ? 'Neural Network' : 'LSB'}. PSNR: ${psnr.toFixed(2)} dB`,
       });
     } catch (error) {
       console.error('Encode error:', error);
+      
+      // Save error to history
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && coverImage) {
+        await supabase.from('encryption_history').insert({
+          user_id: user.id,
+          operation_type: 'encode',
+          status: 'error',
+          filename: coverImage.name,
+          encryption_method: useNeuralNet && modelsReady ? 'Neural' : 'LSB',
+          key_used: !useNeuralNet && encodeKey.length > 0,
+          file_size_bytes: coverImage.size,
+          image_format: coverImage.name.split('.').pop()?.toUpperCase() || 'PNG'
+        });
+      }
+      
       toast({
         title: "Encoding Failed",
         description: error instanceof Error ? error.message : 'An error occurred.',
@@ -389,12 +423,44 @@ const WorkspacePanel: React.FC = () => {
 
       URL.revokeObjectURL(imageUrl);
 
+      // Save to history
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('encryption_history').insert({
+          user_id: user.id,
+          operation_type: 'decode',
+          status: 'success',
+          filename: stegoImage.name,
+          encoding_time_ms: Math.round(endTime - startTime),
+          encryption_method: useNeuralNet && modelsReady ? 'Neural' : 'LSB',
+          key_used: !useNeuralNet && decodeKey.length > 0,
+          file_size_bytes: stegoImage.size,
+          image_format: stegoImage.name.split('.').pop()?.toUpperCase() || 'PNG'
+        });
+      }
+
       toast({
         title: "Decoding Complete! 🎉",
         description: `Message extracted using ${useNeuralNet && modelsReady ? 'Neural Network' : 'LSB'}!`,
       });
     } catch (error) {
       console.error('Decode error:', error);
+      
+      // Save error to history
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && stegoImage) {
+        await supabase.from('encryption_history').insert({
+          user_id: user.id,
+          operation_type: 'decode',
+          status: 'error',
+          filename: stegoImage.name,
+          encryption_method: useNeuralNet && modelsReady ? 'Neural' : 'LSB',
+          key_used: !useNeuralNet && decodeKey.length > 0,
+          file_size_bytes: stegoImage.size,
+          image_format: stegoImage.name.split('.').pop()?.toUpperCase() || 'PNG'
+        });
+      }
+      
       toast({
         title: "Decoding Failed",
         description: error instanceof Error ? error.message : 'An error occurred.',
