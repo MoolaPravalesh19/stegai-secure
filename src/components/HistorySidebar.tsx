@@ -11,8 +11,6 @@ interface HistoryItem {
   operation_type: 'encode' | 'decode';
   status: 'success' | 'error';
   filename: string | null;
-  encryption_method: string | null;
-  key_used: boolean | null;
   encoding_time_ms: number | null;
   psnr_value: number | null;
 }
@@ -49,7 +47,7 @@ const HistorySidebar: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('encryption_history')
-        .select('id, created_at, operation_type, status, filename, encryption_method, key_used, encoding_time_ms, psnr_value')
+        .select('id, created_at, operation_type, status, filename, encoding_time_ms, psnr_value')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -124,16 +122,6 @@ const HistorySidebar: React.FC = () => {
                   )}>
                     {item.operation_type}
                   </span>
-                  {item.encryption_method && (
-                    <span className="px-1 py-0.5 rounded text-[9px] sm:text-[10px] bg-muted/50 text-muted-foreground">
-                      {item.encryption_method}
-                    </span>
-                  )}
-                  {item.key_used && (
-                    <span className="px-1 py-0.5 rounded text-[9px] sm:text-[10px] bg-warning/10 text-warning">
-                      🔑
-                    </span>
-                  )}
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5 text-muted-foreground">
                   <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
