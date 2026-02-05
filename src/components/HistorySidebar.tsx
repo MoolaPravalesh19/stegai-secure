@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2 } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2, MessageSquare, Image } from 'lucide-react';
 import GlassCard from './GlassCard';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface HistoryItem {
   id: string;
@@ -13,12 +14,17 @@ interface HistoryItem {
   filename: string | null;
   encoding_time_ms: number | null;
   psnr_value: number | null;
+  message: string | null;
+  cover_image_url: string | null;
+  stego_image_url: string | null;
+  ssim_score: number | null;
 }
 
 const HistorySidebar: React.FC = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check auth state
@@ -47,7 +53,7 @@ const HistorySidebar: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('encryption_history')
-        .select('id, created_at, operation_type, status, filename, encoding_time_ms, psnr_value')
+        .select('id, created_at, operation_type, status, filename, encoding_time_ms, psnr_value, message, cover_image_url, stego_image_url, ssim_score')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -57,6 +63,18 @@ const HistorySidebar: React.FC = () => {
       console.error('Error fetching history:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedId(prev => prev === id ? null : id);
+  };
+
+  const formatFullTimestamp = (timestamp: string) => {
+    try {
+      return format(new Date(timestamp), 'MMM d, yyyy \'at\' h:mm a');
+    } catch {
+      return 'Unknown date';
     }
   };
 
@@ -95,48 +113,131 @@ const HistorySidebar: React.FC = () => {
           </div>
         ) : (
           history.map((item, index) => (
-            <div 
+            <Collapsible
               key={item.id}
-              className="history-item animate-fade-in"
-              style={{ animationDelay: `${index * 50}ms` }}
+              open={expandedId === item.id}
+              onOpenChange={() => toggleExpanded(item.id)}
+              className="animate-fade-in"
+              style={{ animationDelay: `${index * 50}ms` } as React.CSSProperties}
             >
-              <div className={cn(
-                "p-1 sm:p-1.5 rounded-md",
-                item.status === 'success' ? 'bg-cyber-green/10' : 'bg-destructive/10'
-              )}>
-                {item.status === 'success' ? (
-                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-cyber-green" />
-                ) : (
-                  <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
-                )}
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm font-medium text-foreground truncate">
-                  {item.filename || 'Untitled'}
-                </p>
-                <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-muted-foreground flex-wrap">
-                  <span className={cn(
-                    "px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] uppercase font-medium",
-                    item.operation_type === 'encode' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'
+              <CollapsibleTrigger asChild>
+                <div className="history-item cursor-pointer">
+                  <div className={cn(
+                    "p-1 sm:p-1.5 rounded-md",
+                    item.status === 'success' ? 'bg-cyber-green/10' : 'bg-destructive/10'
                   )}>
-                    {item.operation_type}
-                  </span>
+                    {item.status === 'success' ? (
+                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-cyber-green" />
+                    ) : (
+                      <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-foreground truncate">
+                      {item.filename || 'Untitled'}
+                    </p>
+                    <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-muted-foreground flex-wrap">
+                      <span className={cn(
+                        "px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] uppercase font-medium",
+                        item.operation_type === 'encode' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'
+                      )}>
+                        {item.operation_type}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-muted-foreground">
+                      <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      <span className="text-[10px] sm:text-xs">{formatTimestamp(item.created_at)}</span>
+                      {item.encoding_time_ms && (
+                        <span className="text-[10px] sm:text-xs">• {item.encoding_time_ms}ms</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <ChevronRight 
+                    className={cn(
+                      "w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground transition-transform duration-200",
+                      expandedId === item.id && "rotate-90"
+                    )} 
+                  />
                 </div>
-                <div className="flex items-center gap-1.5 mt-0.5 text-muted-foreground">
-                  <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                  <span className="text-[10px] sm:text-xs">{formatTimestamp(item.created_at)}</span>
-                  {item.encoding_time_ms && (
-                    <span className="text-[10px] sm:text-xs">• {item.encoding_time_ms}ms</span>
-                  )}
-                  {item.psnr_value && (
-                    <span className="text-[10px] sm:text-xs">• {Number(item.psnr_value).toFixed(1)}dB</span>
-                  )}
-                </div>
-              </div>
+              </CollapsibleTrigger>
               
-              <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
-            </div>
+              <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+                <div className="mt-2 p-2 sm:p-3 bg-muted/30 rounded-lg border border-border/50 space-y-3">
+                  {/* Secret Message */}
+                  <div>
+                    <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+                      <MessageSquare className="w-3 h-3" />
+                      <span className="text-[10px] sm:text-xs font-medium uppercase">Secret Message</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-foreground bg-background/50 p-2 rounded border border-border/30 break-words">
+                      {item.message || <span className="text-muted-foreground italic">No message recorded</span>}
+                    </p>
+                  </div>
+
+                  {/* Quality Metrics */}
+                  {(item.psnr_value || item.ssim_score) && (
+                    <div>
+                      <span className="text-[10px] sm:text-xs font-medium uppercase text-muted-foreground">Quality Metrics</span>
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        {item.psnr_value && (
+                          <div className="bg-background/50 p-2 rounded border border-border/30">
+                            <span className="text-[10px] text-muted-foreground">PSNR</span>
+                            <p className="text-sm font-mono font-semibold text-cyber-cyan">{Number(item.psnr_value).toFixed(2)} dB</p>
+                          </div>
+                        )}
+                        {item.ssim_score && (
+                          <div className="bg-background/50 p-2 rounded border border-border/30">
+                            <span className="text-[10px] text-muted-foreground">SSIM</span>
+                            <p className="text-sm font-mono font-semibold text-cyber-purple">{Number(item.ssim_score).toFixed(4)}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Image Previews */}
+                  {(item.cover_image_url || item.stego_image_url) && (
+                    <div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+                        <Image className="w-3 h-3" />
+                        <span className="text-[10px] sm:text-xs font-medium uppercase">Images</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {item.cover_image_url && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-muted-foreground">Cover</span>
+                            <img 
+                              src={item.cover_image_url} 
+                              alt="Cover" 
+                              className="w-full h-16 object-cover rounded border border-border/30"
+                            />
+                          </div>
+                        )}
+                        {item.stego_image_url && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-muted-foreground">Stego</span>
+                            <img 
+                              src={item.stego_image_url} 
+                              alt="Stego" 
+                              className="w-full h-16 object-cover rounded border border-border/30"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full Timestamp */}
+                  <div className="pt-2 border-t border-border/30">
+                    <span className="text-[10px] text-muted-foreground">
+                      Created: {formatFullTimestamp(item.created_at)}
+                    </span>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           ))
         )}
       </div>
