@@ -1,7 +1,9 @@
 import React from 'react';
 import { Activity, Timer, BarChart3, Zap, LogOut, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import logo from '@/assets/logo.png';
+import { useTheme } from 'next-themes';
+import logoDark from '@/assets/logo.png';
+import logoLight from '@/assets/logo-light.png';
 import CyberGrid from '@/components/CyberGrid';
 import HeroSection from '@/components/HeroSection';
 import WorkspacePanel from '@/components/WorkspacePanel';
@@ -15,6 +17,8 @@ import { useAuth } from '@/hooks/useAuth';
 
 const Index: React.FC = () => {
   const { user, profile, loading, signOut } = useAuth();
+  const { resolvedTheme } = useTheme();
+  const logo = resolvedTheme === 'dark' ? logoDark : logoLight;
 
   return (
     <div className="min-h-screen relative">

@@ -1,8 +1,13 @@
 import React from 'react';
 import { Cpu, Eye, Shield } from 'lucide-react';
-import logo from '@/assets/logo.png';
+import { useTheme } from 'next-themes';
+import logoDark from '@/assets/logo.png';
+import logoLight from '@/assets/logo-light.png';
 
 const HeroSection: React.FC = () => {
+  const { resolvedTheme } = useTheme();
+  const logo = resolvedTheme === 'dark' ? logoDark : logoLight;
+
   return (
     <div className="text-center mb-8 sm:mb-12 px-2">
       {/* Logo/Icon */}
