@@ -24,7 +24,7 @@ const Index: React.FC = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 group cursor-pointer hover-scale">
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow duration-300">
-              <span className="text-primary-foreground font-mono font-bold text-xs sm:text-sm">S</span>
+              <img src="https://ulzfwccoarvbvmrekcgx.supabase.co/storage/v1/object/public/stego-images/logo.png" alt="" />
             </div>
             <span className="font-mono font-bold text-base sm:text-lg text-foreground">StegAI</span>
           </div>
