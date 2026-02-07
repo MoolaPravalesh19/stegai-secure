@@ -1,14 +1,20 @@
 import React from 'react';
-import { Shield, Cpu, Eye } from 'lucide-react';
+import { Cpu, Eye, Shield } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import logoDark from '@/assets/logo.png';
+import logoLight from '@/assets/logo-light.png';
 
 const HeroSection: React.FC = () => {
+  const { resolvedTheme } = useTheme();
+  const logo = resolvedTheme === 'dark' ? logoDark : logoLight;
+
   return (
     <div className="text-center mb-8 sm:mb-12 px-2">
       {/* Logo/Icon */}
       <div className="inline-flex items-center justify-center mb-4 sm:mb-6 relative">
-        <div className="absolute inset-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-primary/20 blur-xl animate-pulse-glow" />
-        <div className="relative p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30">
-          <Shield className="w-8 h-8 sm:w-12 sm:h-12 text-primary" />
+        <div className="absolute inset-0 w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-primary/20 blur-xl animate-pulse-glow" />
+        <div className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-xl sm:rounded-2xl overflow-hidden">
+          <img src={logo} alt="StegAI Logo" className="w-full h-full object-contain" />
         </div>
       </div>
       
