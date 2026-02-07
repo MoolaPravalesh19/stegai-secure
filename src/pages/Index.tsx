@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity, Timer, BarChart3, Zap, LogOut, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import logo from '@/assets/logo.png';
 import CyberGrid from '@/components/CyberGrid';
 import HeroSection from '@/components/HeroSection';
 import WorkspacePanel from '@/components/WorkspacePanel';
@@ -23,8 +24,8 @@ const Index: React.FC = () => {
       <header className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 py-3 sm:py-4 backdrop-blur-xl bg-background/60 border-b border-border/30 animate-fade-in">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 group cursor-pointer hover-scale">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow duration-300">
-              <img src="https://ulzfwccoarvbvmrekcgx.supabase.co/storage/v1/object/public/stego-images/logo.png" alt="" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg overflow-hidden shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow duration-300">
+              <img src={logo} alt="StegAI Logo" className="w-full h-full object-contain" />
             </div>
             <span className="font-mono font-bold text-base sm:text-lg text-foreground">StegAI</span>
           </div>
