@@ -75,7 +75,7 @@ const Index: React.FC = () => {
             {/* Left Column - Workspace */}
             <div className="lg:col-span-2 space-y-4 sm:space-y-6 order-2 lg:order-1">
             {/* Metrics Dashboard */}
-              <section className="animate-fade-in" style={{ animationDelay: '100ms' }}>
+              {/* <section className="animate-fade-in" style={{ animationDelay: '100ms' }}>
                 <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   Performance Metrics
                 </h2>
@@ -120,7 +120,7 @@ const Index: React.FC = () => {
                     />
                   </div>
                 </div>
-              </section>
+              </section> */}
               
               {/* Workspace Panels */}
               <section className="animate-fade-in" style={{ animationDelay: '350ms' }}>
@@ -138,14 +138,14 @@ const Index: React.FC = () => {
                 <ComparisonSlider />
               </section>
               
-              {/* Architecture Overview */}
+              {/* Architecture Overview
               <section className="animate-fade-in" style={{ animationDelay: '450ms' }}>
                 <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   System Architecture
                 </h2>
                 <ArchitectureOverview />
               </section>
-            </div>
+            </div> */}
             
             {/* Right Column - History Sidebar */}
             <div className="lg:col-span-1 animate-fade-in order-1 lg:order-2" style={{ animationDelay: '200ms' }}>
