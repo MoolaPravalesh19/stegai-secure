@@ -310,6 +310,38 @@ const WorkspacePanel: React.FC = () => {
       // Save to history
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        let coverImageUrl: string | null = null;
+        let stegoImageUrl: string | null = null;
+
+        // Upload cover image to storage
+        try {
+          const coverPath = `${user.id}/${Date.now()}_cover_${coverImage.name}`;
+          const { error: coverUpErr } = await supabase.storage
+            .from('stego-images')
+            .upload(coverPath, coverImage, { contentType: coverImage.type });
+          if (!coverUpErr) {
+            const { data: coverUrlData } = supabase.storage
+              .from('stego-images')
+              .getPublicUrl(coverPath);
+            coverImageUrl = coverUrlData.publicUrl;
+          }
+        } catch (e) { console.error('Cover upload failed:', e); }
+
+        // Upload stego image to storage
+        try {
+          const stegoBlob = await (await fetch(encodedUrl)).blob();
+          const stegoPath = `${user.id}/${Date.now()}_stego_${coverImage.name}`;
+          const { error: stegoUpErr } = await supabase.storage
+            .from('stego-images')
+            .upload(stegoPath, stegoBlob, { contentType: 'image/png' });
+          if (!stegoUpErr) {
+            const { data: stegoUrlData } = supabase.storage
+              .from('stego-images')
+              .getPublicUrl(stegoPath);
+            stegoImageUrl = stegoUrlData.publicUrl;
+          }
+        } catch (e) { console.error('Stego upload failed:', e); }
+
         await supabase.from('encryption_history').insert({
           user_id: user.id,
           operation_type: 'encode',
@@ -317,10 +349,9 @@ const WorkspacePanel: React.FC = () => {
           filename: coverImage.name,
           encoding_time_ms: Math.round(endTime - startTime),
           psnr_value: psnr,
-          encryption_method: useNeuralNet && modelsReady ? 'Neural' : 'LSB',
-          key_used: !useNeuralNet && encodeKey.length > 0,
-          file_size_bytes: coverImage.size,
-          image_format: coverImage.name.split('.').pop()?.toUpperCase() || 'PNG'
+          message: secretMessage,
+          cover_image_url: coverImageUrl,
+          stego_image_url: stegoImageUrl,
         });
       }
 
@@ -426,16 +457,30 @@ const WorkspacePanel: React.FC = () => {
       // Save to history
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        let stegoImageUrl: string | null = null;
+
+        // Upload stego image to storage
+        try {
+          const stegoPath = `${user.id}/${Date.now()}_decode_${stegoImage.name}`;
+          const { error: stegoUpErr } = await supabase.storage
+            .from('stego-images')
+            .upload(stegoPath, stegoImage, { contentType: stegoImage.type });
+          if (!stegoUpErr) {
+            const { data: stegoUrlData } = supabase.storage
+              .from('stego-images')
+              .getPublicUrl(stegoPath);
+            stegoImageUrl = stegoUrlData.publicUrl;
+          }
+        } catch (e) { console.error('Stego upload failed:', e); }
+
         await supabase.from('encryption_history').insert({
           user_id: user.id,
           operation_type: 'decode',
           status: 'success',
           filename: stegoImage.name,
           encoding_time_ms: Math.round(endTime - startTime),
-          encryption_method: useNeuralNet && modelsReady ? 'Neural' : 'LSB',
-          key_used: !useNeuralNet && decodeKey.length > 0,
-          file_size_bytes: stegoImage.size,
-          image_format: stegoImage.name.split('.').pop()?.toUpperCase() || 'PNG'
+          message: message,
+          stego_image_url: stegoImageUrl,
         });
       }
 
