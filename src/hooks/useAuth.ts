@@ -46,12 +46,28 @@ export const useAuth = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         if (!isMounted) return;
+
+        // Handle token refresh failure — clear stale state
+        if (event === 'TOKEN_REFRESHED' && !currentSession) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
         
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
         if (currentSession?.user) {
-          // Use setTimeout to avoid Supabase deadlock
           setTimeout(async () => {
             if (!isMounted) return;
             const userProfile = await fetchProfile(currentSession.user.id);
@@ -72,9 +88,20 @@ export const useAuth = () => {
     // Then check for existing session
     const initializeAuth = async () => {
       try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
         
         if (!isMounted) return;
+
+        // If session refresh failed (stale/expired token), clear local state
+        if (sessionError) {
+          console.warn('Session expired or invalid, clearing local auth state:', sessionError.message);
+          // Clear stale tokens from storage to stop retry loops
+          await supabase.auth.signOut({ scope: 'local' });
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          return;
+        }
         
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
@@ -87,6 +114,13 @@ export const useAuth = () => {
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        // On network errors, clear stale session to prevent infinite retry
+        if (isMounted) {
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        }
       } finally {
         if (isMounted) {
           setInitialized(true);
