@@ -78,10 +78,7 @@ export const useAuth = () => {
         } else {
           setProfile(null);
         }
-        
-        if (initialized) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     );
 
@@ -135,7 +132,7 @@ export const useAuth = () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [initialized]);
+  }, []);
 
   const signOut = async () => {
     // Avoid noisy 403s: only call backend signOut when a session exists.

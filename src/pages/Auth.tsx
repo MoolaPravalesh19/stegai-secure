@@ -91,10 +91,12 @@ const Auth: React.FC = () => {
         setIsLogin(true);
       }
     } catch (error: any) {
-      let errorMessage = error.message;
+      let errorMessage = error.message || 'Something went wrong';
       
-      // Handle common error cases with friendly messages
-      if (error.message?.includes('User already registered')) {
+      // Handle network errors
+      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.message?.includes('User already registered')) {
         errorMessage = 'An account with this email already exists. Please sign in instead.';
         setIsLogin(true);
       } else if (error.message?.includes('Invalid login credentials')) {
