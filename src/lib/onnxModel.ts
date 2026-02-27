@@ -105,38 +105,24 @@ export const loadDefaultModels = async (): Promise<{ success: boolean; error?: s
   isLoadingDefaults = true;
   
   try {
-    // Get public URLs for models
-    const { data: hidingData } = supabase.storage
-      .from('onnx-models')
-      .getPublicUrl(DEFAULT_HIDING_MODEL);
-    
-    const { data: revealData } = supabase.storage
-      .from('onnx-models')
-      .getPublicUrl(DEFAULT_REVEAL_MODEL);
-
-    // Fetch model files with timeout
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-    
-    const [hidingResponse, revealResponse] = await Promise.all([
-      fetch(hidingData.publicUrl, { signal: controller.signal }),
-      fetch(revealData.publicUrl, { signal: controller.signal })
+    // Download model files directly from storage (more reliable than public URL fetch)
+    const [hidingDownload, revealDownload] = await Promise.all([
+      supabase.storage.from('onnx-models').download(DEFAULT_HIDING_MODEL),
+      supabase.storage.from('onnx-models').download(DEFAULT_REVEAL_MODEL)
     ]);
-    
-    clearTimeout(timeout);
 
-    if (!hidingResponse.ok || !revealResponse.ok) {
+    if (hidingDownload.error || revealDownload.error || !hidingDownload.data || !revealDownload.data) {
       defaultModelsChecked = true;
       isLoadingDefaults = false;
-      return { 
-        success: false, 
-        error: 'Default models not found in storage' 
+      return {
+        success: false,
+        error: 'Default models not found in storage'
       };
     }
 
     const [hidingBuffer, revealBuffer] = await Promise.all([
-      hidingResponse.arrayBuffer(),
-      revealResponse.arrayBuffer()
+      hidingDownload.data.arrayBuffer(),
+      revealDownload.data.arrayBuffer()
     ]);
 
     const result = await loadModelsFromBuffers(hidingBuffer, revealBuffer);
