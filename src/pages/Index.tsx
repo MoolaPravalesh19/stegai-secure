@@ -11,6 +11,7 @@ import ArchitectureOverview from '@/components/ArchitectureOverview';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import logo from '@/assets/logo.png';
 
 const Index: React.FC = () => {
   const { user, profile, loading, signOut } = useAuth();
@@ -24,7 +25,7 @@ const Index: React.FC = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 group cursor-pointer hover-scale">
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow duration-300">
-              <img src="https://ulzfwccoarvbvmrekcgx.supabase.co/storage/v1/object/public/stego-images/logo.png" alt="" />
+              <img src={logo} alt="StegAI logo" className="w-5 h-5 sm:w-6 sm:h-6 object-contain" loading="lazy" />
             </div>
             <span className="font-mono font-bold text-base sm:text-lg text-foreground">StegAI</span>
           </div>
