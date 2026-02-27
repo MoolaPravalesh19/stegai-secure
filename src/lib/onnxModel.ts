@@ -8,8 +8,6 @@ ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/di
 
 let hidingSession: ort.InferenceSession | null = null;
 let revealSession: ort.InferenceSession | null = null;
-let isLoadingDefaults = false;
-let defaultModelsChecked = false;
 
 const IMG_SIZE = 256;
 const DEFAULT_HIDING_MODEL = 'hiding_net.onnx';
@@ -55,13 +53,28 @@ export const loadModelsFromFiles = async (
   return loadModelsFromBuffers(hidingBuffer, revealBuffer);
 };
 
+// Check if default models exist in storage (lightweight HEAD-style check)
+export const checkDefaultModelsExist = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.storage
+      .from('onnx-models')
+      .list('', { limit: 10 });
+
+    if (error || !data) return false;
+
+    const fileNames = data.map(f => f.name);
+    return fileNames.includes(DEFAULT_HIDING_MODEL) && fileNames.includes(DEFAULT_REVEAL_MODEL);
+  } catch {
+    return false;
+  }
+};
+
 // Upload models to storage as defaults
 export const uploadDefaultModels = async (
   hidingFile: File,
   revealFile: File
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // Upload hiding model
     const { error: hidingError } = await supabase.storage
       .from('onnx-models')
       .upload(DEFAULT_HIDING_MODEL, hidingFile, { 
@@ -71,7 +84,6 @@ export const uploadDefaultModels = async (
     
     if (hidingError) throw hidingError;
 
-    // Upload reveal model
     const { error: revealError } = await supabase.storage
       .from('onnx-models')
       .upload(DEFAULT_REVEAL_MODEL, revealFile, { 
@@ -92,28 +104,19 @@ export const uploadDefaultModels = async (
   }
 };
 
-// Load default models from storage
+// Load default models from storage (only call after confirming they exist)
 export const loadDefaultModels = async (): Promise<{ success: boolean; error?: string }> => {
-  if (isLoadingDefaults) {
-    return { success: false, error: 'Already loading models' };
-  }
-  
   if (areModelsLoaded()) {
     return { success: true };
   }
 
-  isLoadingDefaults = true;
-  
   try {
-    // Download model files directly from storage (more reliable than public URL fetch)
     const [hidingDownload, revealDownload] = await Promise.all([
       supabase.storage.from('onnx-models').download(DEFAULT_HIDING_MODEL),
       supabase.storage.from('onnx-models').download(DEFAULT_REVEAL_MODEL)
     ]);
 
     if (hidingDownload.error || revealDownload.error || !hidingDownload.data || !revealDownload.data) {
-      defaultModelsChecked = true;
-      isLoadingDefaults = false;
       return {
         success: false,
         error: 'Default models not found in storage'
@@ -125,14 +128,9 @@ export const loadDefaultModels = async (): Promise<{ success: boolean; error?: s
       revealDownload.data.arrayBuffer()
     ]);
 
-    const result = await loadModelsFromBuffers(hidingBuffer, revealBuffer);
-    defaultModelsChecked = true;
-    isLoadingDefaults = false;
-    return result;
+    return await loadModelsFromBuffers(hidingBuffer, revealBuffer);
   } catch (error) {
     console.error('Failed to load default models:', error);
-    defaultModelsChecked = true;
-    isLoadingDefaults = false;
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error loading default models'
@@ -143,16 +141,6 @@ export const loadDefaultModels = async (): Promise<{ success: boolean; error?: s
 // Check if models are loaded
 export const areModelsLoaded = (): boolean => {
   return hidingSession !== null && revealSession !== null;
-};
-
-// Check if default models check has been performed
-export const hasCheckedDefaultModels = (): boolean => {
-  return defaultModelsChecked;
-};
-
-// Check if currently loading defaults
-export const isLoadingDefaultModels = (): boolean => {
-  return isLoadingDefaults;
 };
 
 // Convert text to binary tensor (matching Python implementation)
@@ -166,7 +154,6 @@ export const textToTensor = (text: string, size: number = IMG_SIZE): Float32Arra
   const bitArray = bits.split('').map(b => parseFloat(b));
   const totalSize = size * size;
   
-  // Pad with zeros if needed
   while (bitArray.length < totalSize) {
     bitArray.push(0);
   }
@@ -184,7 +171,7 @@ export const tensorToText = (tensor: Float32Array): string => {
     if (byte.length < 8) break;
     
     const charCode = parseInt(byte.join(''), 2);
-    if (charCode === 0) break; // End marker
+    if (charCode === 0) break;
     if (charCode >= 32 && charCode <= 126) {
       chars += String.fromCharCode(charCode);
     }
@@ -203,10 +190,9 @@ const imageDataToTensor = (imageData: ImageData): Float32Array => {
       const pixelIdx = (y * width + x) * 4;
       const tensorIdx = y * width + x;
       
-      // Normalize to [0, 1] and arrange as CHW
-      tensor[0 * height * width + tensorIdx] = data[pixelIdx] / 255;     // R
-      tensor[1 * height * width + tensorIdx] = data[pixelIdx + 1] / 255; // G
-      tensor[2 * height * width + tensorIdx] = data[pixelIdx + 2] / 255; // B
+      tensor[0 * height * width + tensorIdx] = data[pixelIdx] / 255;
+      tensor[1 * height * width + tensorIdx] = data[pixelIdx + 1] / 255;
+      tensor[2 * height * width + tensorIdx] = data[pixelIdx + 2] / 255;
     }
   }
   
@@ -226,11 +212,10 @@ const tensorToImageData = (
       const tensorIdx = y * width + x;
       const pixelIdx = (y * width + x) * 4;
       
-      // Denormalize from [0, 1] to [0, 255]
       imageData.data[pixelIdx] = Math.round(Math.max(0, Math.min(1, tensor[0 * height * width + tensorIdx])) * 255);
       imageData.data[pixelIdx + 1] = Math.round(Math.max(0, Math.min(1, tensor[1 * height * width + tensorIdx])) * 255);
       imageData.data[pixelIdx + 2] = Math.round(Math.max(0, Math.min(1, tensor[2 * height * width + tensorIdx])) * 255);
-      imageData.data[pixelIdx + 3] = 255; // Alpha
+      imageData.data[pixelIdx + 3] = 255;
     }
   }
   
@@ -248,13 +233,11 @@ export const encodeWithNeuralNet = async (
   
   const { width, height } = coverImageData;
   
-  // Resize to 256x256 if needed (model requirement)
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
   canvas.width = IMG_SIZE;
   canvas.height = IMG_SIZE;
   
-  // Draw original image scaled to 256x256
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d')!;
   tempCanvas.width = width;
@@ -264,21 +247,15 @@ export const encodeWithNeuralNet = async (
   
   const resizedImageData = ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE);
   
-  // Convert cover image to tensor
   const coverTensor = imageDataToTensor(resizedImageData);
-  
-  // Convert message to binary tensor
   const messageTensor = textToTensor(message, IMG_SIZE);
   
-  // Create ONNX tensors
   const coverOrtTensor = new ort.Tensor('float32', coverTensor, [1, 3, IMG_SIZE, IMG_SIZE]);
   const messageOrtTensor = new ort.Tensor('float32', messageTensor, [1, 1, IMG_SIZE, IMG_SIZE]);
   
-  // Run inference
   const feeds: Record<string, ort.Tensor> = {};
   const inputNames = hidingSession.inputNames;
   
-  // Handle different input name conventions
   if (inputNames.includes('cover') && inputNames.includes('message')) {
     feeds['cover'] = coverOrtTensor;
     feeds['message'] = messageOrtTensor;
@@ -293,10 +270,8 @@ export const encodeWithNeuralNet = async (
   const outputName = hidingSession.outputNames[0];
   const stegoTensor = results[outputName].data as Float32Array;
   
-  // Convert stego tensor back to ImageData
   const stegoImageDataSmall = tensorToImageData(stegoTensor, IMG_SIZE, IMG_SIZE);
   
-  // Scale back to original size
   const outputCanvas = document.createElement('canvas');
   const outputCtx = outputCanvas.getContext('2d')!;
   outputCanvas.width = width;
@@ -311,7 +286,6 @@ export const encodeWithNeuralNet = async (
   
   const stegoImageData = outputCtx.getImageData(0, 0, width, height);
   
-  // Calculate PSNR
   const psnr = calculatePSNR(coverImageData.data, stegoImageData.data);
   
   return { stegoImageData, psnr };
@@ -327,7 +301,6 @@ export const decodeWithNeuralNet = async (
   
   const { width, height } = stegoImageData;
   
-  // Resize to 256x256 if needed
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
   canvas.width = IMG_SIZE;
@@ -342,11 +315,9 @@ export const decodeWithNeuralNet = async (
   
   const resizedImageData = ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE);
   
-  // Convert to tensor
   const stegoTensor = imageDataToTensor(resizedImageData);
   const stegoOrtTensor = new ort.Tensor('float32', stegoTensor, [1, 3, IMG_SIZE, IMG_SIZE]);
   
-  // Run inference
   const feeds: Record<string, ort.Tensor> = {};
   const inputNames = revealSession.inputNames;
   feeds[inputNames[0]] = stegoOrtTensor;
@@ -355,7 +326,6 @@ export const decodeWithNeuralNet = async (
   const outputName = revealSession.outputNames[0];
   const revealedTensor = results[outputName].data as Float32Array;
   
-  // Convert tensor to text
   return tensorToText(revealedTensor);
 };
 
