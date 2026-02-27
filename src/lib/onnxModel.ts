@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 // Configure ONNX Runtime
 ort.env.wasm.numThreads = 1;
+ort.env.wasm.proxy = false;
 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
 
 let hidingSession: ort.InferenceSession | null = null;
@@ -29,7 +30,6 @@ const loadModelsFromBuffers = async (
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all'
     });
-    ort.env.wasm.proxy = false;
     
     console.log('ONNX Models loaded successfully!');
     console.log('HidingNet inputs:', hidingSession.inputNames);
@@ -114,11 +114,16 @@ export const loadDefaultModels = async (): Promise<{ success: boolean; error?: s
       .from('onnx-models')
       .getPublicUrl(DEFAULT_REVEAL_MODEL);
 
-    // Fetch model files
+    // Fetch model files with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    
     const [hidingResponse, revealResponse] = await Promise.all([
-      fetch(hidingData.publicUrl),
-      fetch(revealData.publicUrl)
+      fetch(hidingData.publicUrl, { signal: controller.signal }),
+      fetch(revealData.publicUrl, { signal: controller.signal })
     ]);
+    
+    clearTimeout(timeout);
 
     if (!hidingResponse.ok || !revealResponse.ok) {
       defaultModelsChecked = true;
