@@ -6,8 +6,7 @@ import {
   areModelsLoaded, 
   loadDefaultModels,
   uploadDefaultModels,
-  hasCheckedDefaultModels,
-  isLoadingDefaultModels
+  checkDefaultModelsExist
 } from '@/lib/onnxModel';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,52 +15,69 @@ interface ModelUploaderProps {
   onModelsLoaded: () => void;
 }
 
+type ModelStatus = 'checking' | 'loading' | 'loaded' | 'not-found';
+
 const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
   const { user } = useAuth();
   const [hidingFile, setHidingFile] = useState<File | null>(null);
   const [revealFile, setRevealFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(areModelsLoaded());
-  const [isCheckingDefaults, setIsCheckingDefaults] = useState(!hasCheckedDefaultModels());
-  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSavingAndLoading, setIsSavingAndLoading] = useState(false);
+  const [status, setStatus] = useState<ModelStatus>(areModelsLoaded() ? 'loaded' : 'checking');
   
   const hidingInputRef = useRef<HTMLInputElement>(null);
   const revealInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-load default models on mount
+  // On mount: check storage → load if exists, otherwise show upload UI
   useEffect(() => {
-    const checkDefaultModels = async () => {
-      if (areModelsLoaded()) {
-        setIsLoaded(true);
-        setIsCheckingDefaults(false);
-        onModelsLoaded();
+    if (areModelsLoaded()) {
+      setStatus('loaded');
+      onModelsLoaded();
+      return;
+    }
+
+    let cancelled = false;
+
+    const init = async () => {
+      setStatus('checking');
+      const exists = await checkDefaultModelsExist();
+
+      if (cancelled) return;
+
+      if (!exists) {
+        setStatus('not-found');
         return;
       }
 
-      if (hasCheckedDefaultModels() || isLoadingDefaultModels()) {
-        setIsCheckingDefaults(false);
-        return;
-      }
-
-      setIsCheckingDefaults(true);
+      // Models exist in storage — download and load them
+      setStatus('loading');
       const result = await loadDefaultModels();
-      
+
+      if (cancelled) return;
+
       if (result.success) {
-        setIsLoaded(true);
+        setStatus('loaded');
         onModelsLoaded();
         toast({
           title: "Neural Network Ready! 🧠",
-          description: "Default models loaded automatically",
+          description: "Default models loaded from storage",
+        });
+      } else {
+        setStatus('not-found');
+        toast({
+          title: "Failed to load models",
+          description: result.error,
+          variant: "destructive"
         });
       }
-      
-      setIsCheckingDefaults(false);
     };
 
-    checkDefaultModels();
+    init();
+    return () => { cancelled = true; };
   }, [onModelsLoaded]);
 
-  const handleLoadModels = async () => {
+  // Upload → save as default → load into runtime
+  const handleUploadAndSetDefault = async () => {
     if (!hidingFile || !revealFile) {
       toast({
         title: "Missing files",
@@ -71,16 +87,61 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
       return;
     }
 
-    setIsLoading(true);
+    setIsSavingAndLoading(true);
+
+    // 1. Upload to storage as defaults
+    const uploadResult = await uploadDefaultModels(hidingFile, revealFile);
+    if (!uploadResult.success) {
+      toast({
+        title: "Upload failed",
+        description: uploadResult.error,
+        variant: "destructive"
+      });
+      setIsSavingAndLoading(false);
+      return;
+    }
+
+    // 2. Load into runtime
+    const loadResult = await loadModelsFromFiles(hidingFile, revealFile);
+    if (loadResult.success) {
+      setStatus('loaded');
+      onModelsLoaded();
+      toast({
+        title: "Models Ready! 🎉",
+        description: "Models saved as default and loaded for use",
+      });
+    } else {
+      toast({
+        title: "Models saved but failed to load",
+        description: loadResult.error,
+        variant: "destructive"
+      });
+    }
+
+    setIsSavingAndLoading(false);
+  };
+
+  // Just load locally without saving
+  const handleLoadOnly = async () => {
+    if (!hidingFile || !revealFile) {
+      toast({
+        title: "Missing files",
+        description: "Please upload both hiding_net.onnx and reveal_net.onnx",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
     
     const result = await loadModelsFromFiles(hidingFile, revealFile);
     
     if (result.success) {
-      setIsLoaded(true);
+      setStatus('loaded');
       onModelsLoaded();
       toast({
         title: "Models Loaded! 🎉",
-        description: "Neural network is ready for steganography",
+        description: "Neural network is ready (not saved as default)",
       });
     } else {
       toast({
@@ -90,59 +151,31 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
       });
     }
     
-    setIsLoading(false);
+    setIsUploading(false);
   };
 
-  const handleSaveAsDefaults = async () => {
-    if (!hidingFile || !revealFile) {
-      toast({
-        title: "Missing files",
-        description: "Please upload both model files first",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to save default models",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSavingDefaults(true);
-    
-    const result = await uploadDefaultModels(hidingFile, revealFile);
-    
-    if (result.success) {
-      toast({
-        title: "Default Models Saved! ☁️",
-        description: "These models will now load automatically for all visitors",
-      });
-    } else {
-      toast({
-        title: "Failed to save defaults",
-        description: result.error,
-        variant: "destructive"
-      });
-    }
-    
-    setIsSavingDefaults(false);
-  };
-
-  // Show loading state while checking for default models
-  if (isCheckingDefaults) {
+  // Checking storage
+  if (status === 'checking') {
     return (
       <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
         <Loader2 className="w-5 h-5 text-primary animate-spin" />
-        <span className="text-sm font-medium text-muted-foreground">Loading neural network...</span>
+        <span className="text-sm font-medium text-muted-foreground">Checking for neural network models...</span>
       </div>
     );
   }
 
-  if (isLoaded) {
+  // Downloading & loading from storage
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+        <Loader2 className="w-5 h-5 text-primary animate-spin" />
+        <span className="text-sm font-medium text-muted-foreground">Loading neural network models...</span>
+      </div>
+    );
+  }
+
+  // Loaded successfully
+  if (status === 'loaded') {
     return (
       <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
         <Check className="w-5 h-5 text-green-500" />
@@ -151,15 +184,16 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
     );
   }
 
+  // Not found — show upload UI
   return (
     <div className="space-y-4 p-4 rounded-xl bg-muted/30 border border-border/50">
       <div className="flex items-center gap-2">
         <Brain className="w-5 h-5 text-primary" />
-        <span className="font-medium text-foreground">Load Neural Network Models</span>
+        <span className="font-medium text-foreground">Upload Neural Network Models</span>
       </div>
       
       <p className="text-xs text-muted-foreground">
-        Upload your trained ONNX model files to enable neural steganography
+        No default models found. Upload your trained ONNX models to get started. They will be saved as defaults for future use.
       </p>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -232,44 +266,42 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
       
       <div className="flex flex-col sm:flex-row gap-2">
         <Button
-          onClick={handleLoadModels}
-          disabled={!hidingFile || !revealFile || isLoading}
+          onClick={handleUploadAndSetDefault}
+          disabled={!hidingFile || !revealFile || isSavingAndLoading || isUploading}
           className="flex-1"
           variant="cyber"
         >
-          {isLoading ? (
+          {isSavingAndLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              Loading Models...
+              Saving & Loading...
+            </>
+          ) : (
+            <>
+              <CloudUpload className="w-4 h-4 mr-2" />
+              Save as Default & Load
+            </>
+          )}
+        </Button>
+
+        <Button
+          onClick={handleLoadOnly}
+          disabled={!hidingFile || !revealFile || isSavingAndLoading || isUploading}
+          variant="outline"
+          className="border-primary/30 hover:border-primary/50"
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Loading...
             </>
           ) : (
             <>
               <Brain className="w-4 h-4 mr-2" />
-              Load Neural Network
+              Load Only
             </>
           )}
         </Button>
-        
-        {user && hidingFile && revealFile && (
-          <Button
-            onClick={handleSaveAsDefaults}
-            disabled={isSavingDefaults || isLoading}
-            variant="outline"
-            className="border-primary/30 hover:border-primary/50"
-          >
-            {isSavingDefaults ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <CloudUpload className="w-4 h-4 mr-2" />
-                Set as Default
-              </>
-            )}
-          </Button>
-        )}
       </div>
       
       <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
