@@ -157,6 +157,8 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_get_operations_over_time: { Args: never; Returns: Json }
+      admin_get_quality_over_time: { Args: never; Returns: Json }
       admin_get_stats: { Args: never; Returns: Json }
       admin_list_storage_files: {
         Args: { bucket: string }

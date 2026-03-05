@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import ThemeToggle from '@/components/ThemeToggle';
 import CyberGrid from '@/components/CyberGrid';
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface Stats {
   total_users: number;
@@ -53,6 +54,25 @@ interface StorageFile {
   created_at: string;
   metadata: Record<string, unknown> | null;
 }
+interface DailyOps {
+  date: string;
+  encodes: number;
+  decodes: number;
+  total: number;
+}
+
+interface DailyQuality {
+  date: string;
+  avg_psnr: number | null;
+  avg_ssim: number | null;
+}
+
+const CHART_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--cyber-green, 142 71% 45%))',
+  'hsl(var(--cyber-purple, 270 70% 60%))',
+  'hsl(var(--cyber-cyan, 190 90% 50%))',
+];
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -63,6 +83,8 @@ const Admin: React.FC = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [storageFiles, setStorageFiles] = useState<StorageFile[]>([]);
+  const [opsOverTime, setOpsOverTime] = useState<DailyOps[]>([]);
+  const [qualityOverTime, setQualityOverTime] = useState<DailyQuality[]>([]);
   const [activeTab, setActiveTab] = useState('analytics');
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -84,10 +106,17 @@ const Admin: React.FC = () => {
     setDataLoading(true);
     try {
       switch (tab) {
-        case 'analytics':
-          const { data: statsData } = await supabase.rpc('admin_get_stats');
+        case 'analytics': {
+          const [{ data: statsData }, { data: opsData }, { data: qualData }] = await Promise.all([
+            supabase.rpc('admin_get_stats'),
+            supabase.rpc('admin_get_operations_over_time' as any),
+            supabase.rpc('admin_get_quality_over_time' as any),
+          ]);
           if (statsData) setStats(statsData as unknown as Stats);
+          if (opsData) setOpsOverTime(opsData as unknown as DailyOps[]);
+          if (qualData) setQualityOverTime(qualData as unknown as DailyQuality[]);
           break;
+        }
         case 'users':
           const { data: profilesData } = await supabase.rpc('admin_get_all_profiles');
           if (profilesData) setProfiles(profilesData as unknown as Profile[]);
@@ -163,24 +192,142 @@ const Admin: React.FC = () => {
             {/* Analytics Tab */}
             <TabsContent value="analytics">
               {stats ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  {[
-                    { label: 'Total Users', value: stats.total_users, color: 'text-primary' },
-                    { label: 'Total Operations', value: stats.total_operations, color: 'text-accent-foreground' },
-                    { label: 'Encodes', value: stats.total_encodes, color: 'text-[hsl(var(--cyber-green))]' },
-                    { label: 'Decodes', value: stats.total_decodes, color: 'text-[hsl(var(--cyber-purple))]' },
-                    { label: 'Today\'s Ops', value: stats.operations_today, color: 'text-[hsl(var(--cyber-cyan))]' },
-                    { label: 'Avg PSNR', value: stats.avg_psnr ? `${stats.avg_psnr} dB` : 'N/A', color: 'text-[hsl(var(--cyber-pink))]' },
-                    { label: 'Avg SSIM', value: stats.avg_ssim ?? 'N/A', color: 'text-primary' },
-                  ].map((stat, i) => (
-                    <Card key={i} className="glass-card border-border/40">
-                      <CardContent className="p-4">
-                        <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">{stat.label}</p>
-                        <p className={`text-2xl font-bold font-mono mt-1 ${stat.color}`}>{stat.value}</p>
+                <>
+                  {/* Stat Cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    {[
+                      { label: 'Total Users', value: stats.total_users, color: 'text-primary' },
+                      { label: 'Total Operations', value: stats.total_operations, color: 'text-accent-foreground' },
+                      { label: 'Encodes', value: stats.total_encodes, color: 'text-[hsl(var(--cyber-green))]' },
+                      { label: 'Decodes', value: stats.total_decodes, color: 'text-[hsl(var(--cyber-purple))]' },
+                      { label: 'Today\'s Ops', value: stats.operations_today, color: 'text-[hsl(var(--cyber-cyan))]' },
+                      { label: 'Avg PSNR', value: stats.avg_psnr ? `${stats.avg_psnr} dB` : 'N/A', color: 'text-[hsl(var(--cyber-pink))]' },
+                      { label: 'Avg SSIM', value: stats.avg_ssim ?? 'N/A', color: 'text-primary' },
+                    ].map((stat, i) => (
+                      <Card key={i} className="glass-card border-border/40">
+                        <CardContent className="p-4">
+                          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">{stat.label}</p>
+                          <p className={`text-2xl font-bold font-mono mt-1 ${stat.color}`}>{stat.value}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Operations Over Time - Area Chart */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                    <Card className="glass-card border-border/40">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-mono">Operations Over Time (30 days)</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={opsOverTime}>
+                              <defs>
+                                <linearGradient id="gradEncode" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor={CHART_COLORS[1]} stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor={CHART_COLORS[1]} stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="gradDecode" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor={CHART_COLORS[2]} stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor={CHART_COLORS[2]} stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                              <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => v.slice(5)} />
+                              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
+                              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
+                              <Area type="monotone" dataKey="encodes" stroke={CHART_COLORS[1]} fill="url(#gradEncode)" name="Encodes" />
+                              <Area type="monotone" dataKey="decodes" stroke={CHART_COLORS[2]} fill="url(#gradDecode)" name="Decodes" />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
+
+                    {/* Daily Bar Chart */}
+                    <Card className="glass-card border-border/40">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-mono">Daily Total Operations</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={opsOverTime}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                              <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => v.slice(5)} />
+                              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
+                              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
+                              <Bar dataKey="encodes" stackId="ops" fill={CHART_COLORS[1]} name="Encodes" radius={[0, 0, 0, 0]} />
+                              <Bar dataKey="decodes" stackId="ops" fill={CHART_COLORS[2]} name="Decodes" radius={[4, 4, 0, 0]} />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Quality & Pie Charts */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <Card className="glass-card border-border/40">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-mono">Quality Metrics Over Time</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={qualityOverTime}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                              <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => v.slice(5)} />
+                              <YAxis yAxisId="psnr" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'PSNR (dB)', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+                              <YAxis yAxisId="ssim" orientation="right" domain={[0, 1]} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'SSIM', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+                              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
+                              <Line yAxisId="psnr" type="monotone" dataKey="avg_psnr" stroke={CHART_COLORS[3]} strokeWidth={2} dot={false} name="Avg PSNR" connectNulls />
+                              <Line yAxisId="ssim" type="monotone" dataKey="avg_ssim" stroke={CHART_COLORS[0]} strokeWidth={2} dot={false} name="Avg SSIM" connectNulls />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Encode vs Decode Pie */}
+                    <Card className="glass-card border-border/40">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-mono">Encode vs Decode Breakdown</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  { name: 'Encodes', value: stats.total_encodes },
+                                  { name: 'Decodes', value: stats.total_decodes },
+                                ]}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={50}
+                                outerRadius={80}
+                                paddingAngle={4}
+                                dataKey="value"
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                labelLine={false}
+                              >
+                                <Cell fill={CHART_COLORS[1]} />
+                                <Cell fill={CHART_COLORS[2]} />
+                              </Pie>
+                              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   {dataLoading ? 'Loading analytics...' : 'No data available'}
