@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image } from 'lucide-react';
+import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import ThemeToggle from '@/components/ThemeToggle';
 import CyberGrid from '@/components/CyberGrid';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { exportToCSV } from '@/lib/csvExport';
+import { toast } from 'sonner';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface Stats {
@@ -87,6 +90,43 @@ const Admin: React.FC = () => {
   const [qualityOverTime, setQualityOverTime] = useState<DailyQuality[]>([]);
   const [activeTab, setActiveTab] = useState('analytics');
   const [dataLoading, setDataLoading] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+
+  const handleDeleteUser = async (userId: string) => {
+    setDeletingUserId(userId);
+    try {
+      const { data, error } = await supabase.rpc('admin_delete_user' as any, { target_user_id: userId });
+      if (error) throw error;
+      toast.success('User and associated data deleted successfully');
+      setProfiles(prev => prev.filter(p => p.user_id !== userId));
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete user');
+    }
+    setDeletingUserId(null);
+  };
+
+  const handleExportCSV = (tab: string) => {
+    switch (tab) {
+      case 'analytics':
+        if (opsOverTime.length) exportToCSV(opsOverTime as any, 'operations_over_time');
+        if (qualityOverTime.length) exportToCSV(qualityOverTime as any, 'quality_over_time');
+        if (stats) exportToCSV([stats as any], 'stats_summary');
+        toast.success('Analytics data exported');
+        break;
+      case 'users':
+        exportToCSV(profiles as any, 'users');
+        toast.success('Users data exported');
+        break;
+      case 'history':
+        exportToCSV(history as any, 'operation_history');
+        toast.success('History data exported');
+        break;
+      case 'storage':
+        exportToCSV(storageFiles as any, 'storage_files');
+        toast.success('Storage data exported');
+        break;
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !adminLoading) {
@@ -167,7 +207,12 @@ const Admin: React.FC = () => {
               <span className="font-mono font-bold text-lg text-foreground">Admin Panel</span>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleExportCSV(activeTab)} className="flex items-center gap-1.5 text-xs">
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </Button>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -351,6 +396,7 @@ const Admin: React.FC = () => {
                           <TableHead>Email</TableHead>
                           <TableHead>Display Name</TableHead>
                           <TableHead>Joined</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -359,6 +405,29 @@ const Admin: React.FC = () => {
                             <TableCell className="font-mono text-xs">{p.email || '—'}</TableCell>
                             <TableCell>{p.display_name || '—'}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{formatDate(p.created_at)}</TableCell>
+                            <TableCell className="text-right">
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" disabled={deletingUserId === p.user_id}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently delete <strong>{p.email || 'this user'}</strong> and all their associated data (history, files, roles). This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteUser(p.user_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                      Delete User
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

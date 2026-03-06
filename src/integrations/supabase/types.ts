@@ -115,6 +115,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_delete_user: { Args: { target_user_id: string }; Returns: Json }
       admin_get_all_history: {
         Args: never
         Returns: {
