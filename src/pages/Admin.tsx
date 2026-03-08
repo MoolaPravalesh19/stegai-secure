@@ -129,24 +129,30 @@ const Admin: React.FC = () => {
   const PAGE_SIZE = 10;
 
   const filteredProfiles = useMemo(() => {
-    if (!userSearch.trim()) return profiles;
-    const q = userSearch.toLowerCase();
-    return profiles.filter(p =>
-      (p.email?.toLowerCase().includes(q)) ||
-      (p.display_name?.toLowerCase().includes(q))
-    );
-  }, [profiles, userSearch]);
+    let data = profiles;
+    if (userSearch.trim()) {
+      const q = userSearch.toLowerCase();
+      data = data.filter(p =>
+        (p.email?.toLowerCase().includes(q)) ||
+        (p.display_name?.toLowerCase().includes(q))
+      );
+    }
+    return sortData(data, userSort.dir ? userSort.key : null, userSort.dir);
+  }, [profiles, userSearch, userSort]);
 
   const filteredHistory = useMemo(() => {
-    if (!historySearch.trim()) return history;
-    const q = historySearch.toLowerCase();
-    return history.filter(h =>
-      h.operation_type.toLowerCase().includes(q) ||
-      h.status.toLowerCase().includes(q) ||
-      (h.filename?.toLowerCase().includes(q)) ||
-      (h.message?.toLowerCase().includes(q))
-    );
-  }, [history, historySearch]);
+    let data = history;
+    if (historySearch.trim()) {
+      const q = historySearch.toLowerCase();
+      data = data.filter(h =>
+        h.operation_type.toLowerCase().includes(q) ||
+        h.status.toLowerCase().includes(q) ||
+        (h.filename?.toLowerCase().includes(q)) ||
+        (h.message?.toLowerCase().includes(q))
+      );
+    }
+    return sortData(data, historySort.dir ? historySort.key : null, historySort.dir);
+  }, [history, historySearch, historySort]);
 
   const paginatedProfiles = useMemo(() => {
     const start = (userPage - 1) * PAGE_SIZE;
