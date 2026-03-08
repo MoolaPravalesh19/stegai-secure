@@ -485,9 +485,15 @@ const Admin: React.FC = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Display Name</TableHead>
-                          <TableHead>Joined</TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'email'))}>
+                            Email <SortIcon dir={userSort.key === 'email' ? userSort.dir : null} />
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'display_name'))}>
+                            Display Name <SortIcon dir={userSort.key === 'display_name' ? userSort.dir : null} />
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'created_at'))}>
+                            Joined <SortIcon dir={userSort.key === 'created_at' ? userSort.dir : null} />
+                          </TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
