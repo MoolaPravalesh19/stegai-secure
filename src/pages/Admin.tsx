@@ -511,12 +511,25 @@ const Admin: React.FC = () => {
             {/* History Tab */}
             <TabsContent value="history">
               <Card className="glass-card border-border/40">
-                <CardHeader>
-                  <CardTitle className="text-base font-mono">All Operations ({history.length})</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="text-base font-mono">All Operations ({filteredHistory.length})</CardTitle>
+                  <div className="relative w-full max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by type, status, filename..."
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      className="pl-9 h-9 text-sm bg-background/50"
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {dataLoading ? (
                     <div className="text-center py-8 text-muted-foreground">Loading history...</div>
+                  ) : paginatedHistory.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      {historySearch ? 'No operations match your search.' : 'No operations found.'}
+                    </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -533,7 +546,7 @@ const Admin: React.FC = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {history.map((h) => (
+                          {paginatedHistory.map((h) => (
                             <TableRow key={h.id}>
                               <TableCell>
                                 <Badge variant={h.operation_type === 'encode' ? 'default' : 'secondary'} className="text-xs">
@@ -571,6 +584,21 @@ const Admin: React.FC = () => {
                     </div>
                   )}
                 </CardContent>
+                {historyTotalPages > 1 && (
+                  <CardFooter className="flex items-center justify-between border-t border-border/30 pt-4">
+                    <span className="text-xs text-muted-foreground">
+                      Page {historyPage} of {historyTotalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={historyPage <= 1} onClick={() => setHistoryPage(p => p - 1)}>
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={historyPage >= historyTotalPages} onClick={() => setHistoryPage(p => p + 1)}>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardFooter>
+                )}
               </Card>
             </TabsContent>
 
