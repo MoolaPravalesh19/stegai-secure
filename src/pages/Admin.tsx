@@ -297,6 +297,7 @@ const Admin: React.FC = () => {
         case 'users':
           const { data: profilesData } = await supabase.rpc('admin_get_all_profiles');
           if (profilesData) setProfiles(profilesData as unknown as Profile[]);
+          await loadUserRoles();
           break;
         case 'history':
           const { data: historyData } = await supabase.rpc('admin_get_all_history');
