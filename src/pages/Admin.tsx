@@ -190,6 +190,58 @@ const Admin: React.FC = () => {
     setDeletingUserId(null);
   };
 
+  const loadUserRoles = useCallback(async () => {
+    const { data, error } = await supabase.from('user_roles').select('*');
+    if (!error && data) {
+      const map: Record<string, AppRole[]> = {};
+      (data as UserRole[]).forEach(r => {
+        if (!map[r.user_id]) map[r.user_id] = [];
+        map[r.user_id].push(r.role);
+      });
+      setUserRoles(map);
+    }
+  }, []);
+
+  const handleSetRole = async (userId: string, newRole: AppRole) => {
+    if (userId === user?.id) {
+      toast.error("Cannot change your own role");
+      return;
+    }
+    setRoleUpdating(userId);
+    try {
+      // Remove all existing roles for this user
+      const { error: deleteError } = await supabase.from('user_roles').delete().eq('user_id', userId);
+      if (deleteError) throw deleteError;
+
+      // Insert the new role
+      const { error: insertError } = await supabase.from('user_roles').insert({ user_id: userId, role: newRole });
+      if (insertError) throw insertError;
+
+      setUserRoles(prev => ({ ...prev, [userId]: [newRole] }));
+      toast.success(`Role updated to ${newRole}`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update role');
+    }
+    setRoleUpdating(null);
+  };
+
+  const handleRemoveAllRoles = async (userId: string) => {
+    if (userId === user?.id) {
+      toast.error("Cannot remove your own roles");
+      return;
+    }
+    setRoleUpdating(userId);
+    try {
+      const { error } = await supabase.from('user_roles').delete().eq('user_id', userId);
+      if (error) throw error;
+      setUserRoles(prev => { const n = { ...prev }; delete n[userId]; return n; });
+      toast.success('All roles removed');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to remove roles');
+    }
+    setRoleUpdating(null);
+  };
+
   const handleExportCSV = (tab: string) => {
     switch (tab) {
       case 'analytics':
