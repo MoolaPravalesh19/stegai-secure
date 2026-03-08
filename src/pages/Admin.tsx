@@ -426,12 +426,25 @@ const Admin: React.FC = () => {
             {/* Users Tab */}
             <TabsContent value="users">
               <Card className="glass-card border-border/40">
-                <CardHeader>
-                  <CardTitle className="text-base font-mono">Registered Users ({profiles.length})</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="text-base font-mono">Registered Users ({filteredProfiles.length})</CardTitle>
+                  <div className="relative w-full max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by email or name..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="pl-9 h-9 text-sm bg-background/50"
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {dataLoading ? (
                     <div className="text-center py-8 text-muted-foreground">Loading users...</div>
+                  ) : paginatedProfiles.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      {userSearch ? 'No users match your search.' : 'No users found.'}
+                    </div>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -443,7 +456,7 @@ const Admin: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {profiles.map((p) => (
+                        {paginatedProfiles.map((p) => (
                           <TableRow key={p.id}>
                             <TableCell className="font-mono text-xs">{p.email || '—'}</TableCell>
                             <TableCell>{p.display_name || '—'}</TableCell>
@@ -477,6 +490,21 @@ const Admin: React.FC = () => {
                     </Table>
                   )}
                 </CardContent>
+                {userTotalPages > 1 && (
+                  <CardFooter className="flex items-center justify-between border-t border-border/30 pt-4">
+                    <span className="text-xs text-muted-foreground">
+                      Page {userPage} of {userTotalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={userPage <= 1} onClick={() => setUserPage(p => p - 1)}>
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={userPage >= userTotalPages} onClick={() => setUserPage(p => p + 1)}>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardFooter>
+                )}
               </Card>
             </TabsContent>
 
