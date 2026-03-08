@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image, Download, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image, Download, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -71,6 +71,34 @@ interface DailyQuality {
   avg_ssim: number | null;
 }
 
+type SortDir = 'asc' | 'desc' | null;
+interface SortState<T extends string> { key: T; dir: SortDir; }
+
+function toggleSort<T extends string>(current: SortState<T>, key: T): SortState<T> {
+  if (current.key !== key) return { key, dir: 'asc' };
+  if (current.dir === 'asc') return { key, dir: 'desc' };
+  return { key, dir: null };
+}
+
+function sortData<T>(data: T[], key: keyof T | null, dir: SortDir): T[] {
+  if (!key || !dir) return data;
+  return [...data].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'number' && typeof bv === 'number') return dir === 'asc' ? av - bv : bv - av;
+    const sa = String(av).toLowerCase(), sb = String(bv).toLowerCase();
+    return dir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+  });
+}
+
+const SortIcon: React.FC<{ dir: SortDir }> = ({ dir }) => {
+  if (dir === 'asc') return <ArrowUp className="inline w-3 h-3 ml-1" />;
+  if (dir === 'desc') return <ArrowDown className="inline w-3 h-3 ml-1" />;
+  return <ArrowUpDown className="inline w-3 h-3 ml-1 opacity-40" />;
+};
+
 const CHART_COLORS = [
   'hsl(var(--primary))',
   'hsl(var(--cyber-green, 142 71% 45%))',
@@ -96,27 +124,35 @@ const Admin: React.FC = () => {
   const [historySearch, setHistorySearch] = useState('');
   const [userPage, setUserPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
+  const [userSort, setUserSort] = useState<SortState<keyof Profile>>({ key: 'created_at', dir: null });
+  const [historySort, setHistorySort] = useState<SortState<keyof HistoryItem>>({ key: 'created_at', dir: null });
   const PAGE_SIZE = 10;
 
   const filteredProfiles = useMemo(() => {
-    if (!userSearch.trim()) return profiles;
-    const q = userSearch.toLowerCase();
-    return profiles.filter(p =>
-      (p.email?.toLowerCase().includes(q)) ||
-      (p.display_name?.toLowerCase().includes(q))
-    );
-  }, [profiles, userSearch]);
+    let data = profiles;
+    if (userSearch.trim()) {
+      const q = userSearch.toLowerCase();
+      data = data.filter(p =>
+        (p.email?.toLowerCase().includes(q)) ||
+        (p.display_name?.toLowerCase().includes(q))
+      );
+    }
+    return sortData(data, userSort.dir ? userSort.key : null, userSort.dir);
+  }, [profiles, userSearch, userSort]);
 
   const filteredHistory = useMemo(() => {
-    if (!historySearch.trim()) return history;
-    const q = historySearch.toLowerCase();
-    return history.filter(h =>
-      h.operation_type.toLowerCase().includes(q) ||
-      h.status.toLowerCase().includes(q) ||
-      (h.filename?.toLowerCase().includes(q)) ||
-      (h.message?.toLowerCase().includes(q))
-    );
-  }, [history, historySearch]);
+    let data = history;
+    if (historySearch.trim()) {
+      const q = historySearch.toLowerCase();
+      data = data.filter(h =>
+        h.operation_type.toLowerCase().includes(q) ||
+        h.status.toLowerCase().includes(q) ||
+        (h.filename?.toLowerCase().includes(q)) ||
+        (h.message?.toLowerCase().includes(q))
+      );
+    }
+    return sortData(data, historySort.dir ? historySort.key : null, historySort.dir);
+  }, [history, historySearch, historySort]);
 
   const paginatedProfiles = useMemo(() => {
     const start = (userPage - 1) * PAGE_SIZE;
@@ -449,9 +485,15 @@ const Admin: React.FC = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Display Name</TableHead>
-                          <TableHead>Joined</TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'email'))}>
+                            Email <SortIcon dir={userSort.key === 'email' ? userSort.dir : null} />
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'display_name'))}>
+                            Display Name <SortIcon dir={userSort.key === 'display_name' ? userSort.dir : null} />
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'created_at'))}>
+                            Joined <SortIcon dir={userSort.key === 'created_at' ? userSort.dir : null} />
+                          </TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -535,14 +577,26 @@ const Admin: React.FC = () => {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Filename</TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'operation_type'))}>
+                              Type <SortIcon dir={historySort.key === 'operation_type' ? historySort.dir : null} />
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'status'))}>
+                              Status <SortIcon dir={historySort.key === 'status' ? historySort.dir : null} />
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'filename'))}>
+                              Filename <SortIcon dir={historySort.key === 'filename' ? historySort.dir : null} />
+                            </TableHead>
                             <TableHead>Message</TableHead>
-                            <TableHead>PSNR</TableHead>
-                            <TableHead>SSIM</TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'psnr_value'))}>
+                              PSNR <SortIcon dir={historySort.key === 'psnr_value' ? historySort.dir : null} />
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'ssim_score'))}>
+                              SSIM <SortIcon dir={historySort.key === 'ssim_score' ? historySort.dir : null} />
+                            </TableHead>
                             <TableHead>Images</TableHead>
-                            <TableHead>Date</TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'created_at'))}>
+                              Date <SortIcon dir={historySort.key === 'created_at' ? historySort.dir : null} />
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
