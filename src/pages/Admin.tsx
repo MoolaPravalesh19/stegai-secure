@@ -123,7 +123,8 @@ const Admin: React.FC = () => {
   const [userSearch, setUserSearch] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [userPage, setUserPage] = useState(1);
-  const [historyPage, setHistoryPage] = useState(1);
+  const [userSort, setUserSort] = useState<SortState<keyof Profile>>({ key: 'created_at', dir: null });
+  const [historySort, setHistorySort] = useState<SortState<keyof HistoryItem>>({ key: 'created_at', dir: null });
   const PAGE_SIZE = 10;
 
   const filteredProfiles = useMemo(() => {
