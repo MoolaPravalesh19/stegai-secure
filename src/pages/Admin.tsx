@@ -92,6 +92,48 @@ const Admin: React.FC = () => {
   const [activeTab, setActiveTab] = useState('analytics');
   const [dataLoading, setDataLoading] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
+  const [userPage, setUserPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const filteredProfiles = useMemo(() => {
+    if (!userSearch.trim()) return profiles;
+    const q = userSearch.toLowerCase();
+    return profiles.filter(p =>
+      (p.email?.toLowerCase().includes(q)) ||
+      (p.display_name?.toLowerCase().includes(q))
+    );
+  }, [profiles, userSearch]);
+
+  const filteredHistory = useMemo(() => {
+    if (!historySearch.trim()) return history;
+    const q = historySearch.toLowerCase();
+    return history.filter(h =>
+      h.operation_type.toLowerCase().includes(q) ||
+      h.status.toLowerCase().includes(q) ||
+      (h.filename?.toLowerCase().includes(q)) ||
+      (h.message?.toLowerCase().includes(q))
+    );
+  }, [history, historySearch]);
+
+  const paginatedProfiles = useMemo(() => {
+    const start = (userPage - 1) * PAGE_SIZE;
+    return filteredProfiles.slice(start, start + PAGE_SIZE);
+  }, [filteredProfiles, userPage]);
+
+  const paginatedHistory = useMemo(() => {
+    const start = (historyPage - 1) * PAGE_SIZE;
+    return filteredHistory.slice(start, start + PAGE_SIZE);
+  }, [filteredHistory, historyPage]);
+
+  const userTotalPages = Math.max(1, Math.ceil(filteredProfiles.length / PAGE_SIZE));
+  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / PAGE_SIZE));
+
+  // Reset page when search changes
+  useEffect(() => { setUserPage(1); }, [userSearch]);
+  useEffect(() => { setHistoryPage(1); }, [historySearch]);
 
   const handleDeleteUser = async (userId: string) => {
     setDeletingUserId(userId);
