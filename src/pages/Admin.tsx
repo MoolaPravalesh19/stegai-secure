@@ -577,14 +577,26 @@ const Admin: React.FC = () => {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Filename</TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'operation_type'))}>
+                              Type <SortIcon dir={historySort.key === 'operation_type' ? historySort.dir : null} />
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'status'))}>
+                              Status <SortIcon dir={historySort.key === 'status' ? historySort.dir : null} />
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'filename'))}>
+                              Filename <SortIcon dir={historySort.key === 'filename' ? historySort.dir : null} />
+                            </TableHead>
                             <TableHead>Message</TableHead>
-                            <TableHead>PSNR</TableHead>
-                            <TableHead>SSIM</TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'psnr_value'))}>
+                              PSNR <SortIcon dir={historySort.key === 'psnr_value' ? historySort.dir : null} />
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'ssim_score'))}>
+                              SSIM <SortIcon dir={historySort.key === 'ssim_score' ? historySort.dir : null} />
+                            </TableHead>
                             <TableHead>Images</TableHead>
-                            <TableHead>Date</TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => setHistorySort(s => toggleSort(s, 'created_at'))}>
+                              Date <SortIcon dir={historySort.key === 'created_at' ? historySort.dir : null} />
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
