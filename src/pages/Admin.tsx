@@ -75,6 +75,9 @@ interface DailyQuality {
 type SortDir = 'asc' | 'desc' | null;
 interface SortState<T extends string> { key: T; dir: SortDir; }
 
+type AppRole = 'admin' | 'moderator' | 'user';
+interface UserRole { id: string; user_id: string; role: AppRole; }
+
 function toggleSort<T extends string>(current: SortState<T>, key: T): SortState<T> {
   if (current.key !== key) return { key, dir: 'asc' };
   if (current.dir === 'asc') return { key, dir: 'desc' };
