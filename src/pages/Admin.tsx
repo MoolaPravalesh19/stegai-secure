@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image, Download } from 'lucide-react';
+import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image, Download, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -91,6 +92,48 @@ const Admin: React.FC = () => {
   const [activeTab, setActiveTab] = useState('analytics');
   const [dataLoading, setDataLoading] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
+  const [userPage, setUserPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const filteredProfiles = useMemo(() => {
+    if (!userSearch.trim()) return profiles;
+    const q = userSearch.toLowerCase();
+    return profiles.filter(p =>
+      (p.email?.toLowerCase().includes(q)) ||
+      (p.display_name?.toLowerCase().includes(q))
+    );
+  }, [profiles, userSearch]);
+
+  const filteredHistory = useMemo(() => {
+    if (!historySearch.trim()) return history;
+    const q = historySearch.toLowerCase();
+    return history.filter(h =>
+      h.operation_type.toLowerCase().includes(q) ||
+      h.status.toLowerCase().includes(q) ||
+      (h.filename?.toLowerCase().includes(q)) ||
+      (h.message?.toLowerCase().includes(q))
+    );
+  }, [history, historySearch]);
+
+  const paginatedProfiles = useMemo(() => {
+    const start = (userPage - 1) * PAGE_SIZE;
+    return filteredProfiles.slice(start, start + PAGE_SIZE);
+  }, [filteredProfiles, userPage]);
+
+  const paginatedHistory = useMemo(() => {
+    const start = (historyPage - 1) * PAGE_SIZE;
+    return filteredHistory.slice(start, start + PAGE_SIZE);
+  }, [filteredHistory, historyPage]);
+
+  const userTotalPages = Math.max(1, Math.ceil(filteredProfiles.length / PAGE_SIZE));
+  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / PAGE_SIZE));
+
+  // Reset page when search changes
+  useEffect(() => { setUserPage(1); }, [userSearch]);
+  useEffect(() => { setHistoryPage(1); }, [historySearch]);
 
   const handleDeleteUser = async (userId: string) => {
     setDeletingUserId(userId);
@@ -383,12 +426,25 @@ const Admin: React.FC = () => {
             {/* Users Tab */}
             <TabsContent value="users">
               <Card className="glass-card border-border/40">
-                <CardHeader>
-                  <CardTitle className="text-base font-mono">Registered Users ({profiles.length})</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="text-base font-mono">Registered Users ({filteredProfiles.length})</CardTitle>
+                  <div className="relative w-full max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by email or name..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="pl-9 h-9 text-sm bg-background/50"
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {dataLoading ? (
                     <div className="text-center py-8 text-muted-foreground">Loading users...</div>
+                  ) : paginatedProfiles.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      {userSearch ? 'No users match your search.' : 'No users found.'}
+                    </div>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -400,7 +456,7 @@ const Admin: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {profiles.map((p) => (
+                        {paginatedProfiles.map((p) => (
                           <TableRow key={p.id}>
                             <TableCell className="font-mono text-xs">{p.email || '—'}</TableCell>
                             <TableCell>{p.display_name || '—'}</TableCell>
@@ -434,18 +490,46 @@ const Admin: React.FC = () => {
                     </Table>
                   )}
                 </CardContent>
+                {userTotalPages > 1 && (
+                  <CardFooter className="flex items-center justify-between border-t border-border/30 pt-4">
+                    <span className="text-xs text-muted-foreground">
+                      Page {userPage} of {userTotalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={userPage <= 1} onClick={() => setUserPage(p => p - 1)}>
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={userPage >= userTotalPages} onClick={() => setUserPage(p => p + 1)}>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardFooter>
+                )}
               </Card>
             </TabsContent>
 
             {/* History Tab */}
             <TabsContent value="history">
               <Card className="glass-card border-border/40">
-                <CardHeader>
-                  <CardTitle className="text-base font-mono">All Operations ({history.length})</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="text-base font-mono">All Operations ({filteredHistory.length})</CardTitle>
+                  <div className="relative w-full max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by type, status, filename..."
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      className="pl-9 h-9 text-sm bg-background/50"
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {dataLoading ? (
                     <div className="text-center py-8 text-muted-foreground">Loading history...</div>
+                  ) : paginatedHistory.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      {historySearch ? 'No operations match your search.' : 'No operations found.'}
+                    </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -462,7 +546,7 @@ const Admin: React.FC = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {history.map((h) => (
+                          {paginatedHistory.map((h) => (
                             <TableRow key={h.id}>
                               <TableCell>
                                 <Badge variant={h.operation_type === 'encode' ? 'default' : 'secondary'} className="text-xs">
@@ -500,6 +584,21 @@ const Admin: React.FC = () => {
                     </div>
                   )}
                 </CardContent>
+                {historyTotalPages > 1 && (
+                  <CardFooter className="flex items-center justify-between border-t border-border/30 pt-4">
+                    <span className="text-xs text-muted-foreground">
+                      Page {historyPage} of {historyTotalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={historyPage <= 1} onClick={() => setHistoryPage(p => p - 1)}>
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={historyPage >= historyTotalPages} onClick={() => setHistoryPage(p => p + 1)}>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardFooter>
+                )}
               </Card>
             </TabsContent>
 
