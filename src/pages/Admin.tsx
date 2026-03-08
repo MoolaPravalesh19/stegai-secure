@@ -71,6 +71,34 @@ interface DailyQuality {
   avg_ssim: number | null;
 }
 
+type SortDir = 'asc' | 'desc' | null;
+interface SortState<T extends string> { key: T; dir: SortDir; }
+
+function toggleSort<T extends string>(current: SortState<T>, key: T): SortState<T> {
+  if (current.key !== key) return { key, dir: 'asc' };
+  if (current.dir === 'asc') return { key, dir: 'desc' };
+  return { key, dir: null };
+}
+
+function sortData<T>(data: T[], key: keyof T | null, dir: SortDir): T[] {
+  if (!key || !dir) return data;
+  return [...data].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'number' && typeof bv === 'number') return dir === 'asc' ? av - bv : bv - av;
+    const sa = String(av).toLowerCase(), sb = String(bv).toLowerCase();
+    return dir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+  });
+}
+
+const SortIcon: React.FC<{ dir: SortDir }> = ({ dir }) => {
+  if (dir === 'asc') return <ArrowUp className="inline w-3 h-3 ml-1" />;
+  if (dir === 'desc') return <ArrowDown className="inline w-3 h-3 ml-1" />;
+  return <ArrowUpDown className="inline w-3 h-3 ml-1 opacity-40" />;
+};
+
 const CHART_COLORS = [
   'hsl(var(--primary))',
   'hsl(var(--cyber-green, 142 71% 45%))',
