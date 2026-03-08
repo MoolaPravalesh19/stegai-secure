@@ -553,40 +553,74 @@ const Admin: React.FC = () => {
                           <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'created_at'))}>
                             Joined <SortIcon dir={userSort.key === 'created_at' ? userSort.dir : null} />
                           </TableHead>
+                          <TableHead>Role</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {paginatedProfiles.map((p) => (
-                          <TableRow key={p.id}>
-                            <TableCell className="font-mono text-xs">{p.email || '—'}</TableCell>
-                            <TableCell>{p.display_name || '—'}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{formatDate(p.created_at)}</TableCell>
-                            <TableCell className="text-right">
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" disabled={deletingUserId === p.user_id}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will permanently delete <strong>{p.email || 'this user'}</strong> and all their associated data (history, files, roles). This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteUser(p.user_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                      Delete User
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {paginatedProfiles.map((p) => {
+                          const roles = userRoles[p.user_id] || [];
+                          const currentRole = roles[0] || 'none';
+                          const isSelf = p.user_id === user?.id;
+                          return (
+                            <TableRow key={p.id}>
+                              <TableCell className="font-mono text-xs">{p.email || '—'}</TableCell>
+                              <TableCell>{p.display_name || '—'}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{formatDate(p.created_at)}</TableCell>
+                              <TableCell>
+                                <Select
+                                  value={currentRole}
+                                  onValueChange={(val) => {
+                                    if (val === 'none') handleRemoveAllRoles(p.user_id);
+                                    else handleSetRole(p.user_id, val as AppRole);
+                                  }}
+                                  disabled={roleUpdating === p.user_id || isSelf}
+                                >
+                                  <SelectTrigger className="h-7 w-[120px] text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">
+                                      <span className="flex items-center gap-1.5"><User className="w-3 h-3" /> No role</span>
+                                    </SelectItem>
+                                    <SelectItem value="user">
+                                      <span className="flex items-center gap-1.5"><User className="w-3 h-3" /> User</span>
+                                    </SelectItem>
+                                    <SelectItem value="moderator">
+                                      <span className="flex items-center gap-1.5"><ShieldAlert className="w-3 h-3" /> Moderator</span>
+                                    </SelectItem>
+                                    <SelectItem value="admin">
+                                      <span className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> Admin</span>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" disabled={deletingUserId === p.user_id || isSelf}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will permanently delete <strong>{p.email || 'this user'}</strong> and all their associated data (history, files, roles). This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteUser(p.user_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                        Delete User
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )}
