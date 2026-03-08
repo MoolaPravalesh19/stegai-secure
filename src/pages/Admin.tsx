@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image, Download, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Users, History, HardDrive, BarChart3, ArrowLeft, Shield, Trash2, Image, Download, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, ShieldCheck, ShieldAlert, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import ThemeToggle from '@/components/ThemeToggle';
 import CyberGrid from '@/components/CyberGrid';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { exportToCSV } from '@/lib/csvExport';
 import { toast } from 'sonner';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -74,6 +75,9 @@ interface DailyQuality {
 type SortDir = 'asc' | 'desc' | null;
 interface SortState<T extends string> { key: T; dir: SortDir; }
 
+type AppRole = 'admin' | 'moderator' | 'user';
+interface UserRole { id: string; user_id: string; role: AppRole; }
+
 function toggleSort<T extends string>(current: SortState<T>, key: T): SortState<T> {
   if (current.key !== key) return { key, dir: 'asc' };
   if (current.dir === 'asc') return { key, dir: 'desc' };
@@ -126,6 +130,8 @@ const Admin: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const [userSort, setUserSort] = useState<SortState<keyof Profile>>({ key: 'created_at', dir: null });
   const [historySort, setHistorySort] = useState<SortState<keyof HistoryItem>>({ key: 'created_at', dir: null });
+  const [userRoles, setUserRoles] = useState<Record<string, AppRole[]>>({});
+  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
   const PAGE_SIZE = 10;
 
   const filteredProfiles = useMemo(() => {
@@ -184,6 +190,58 @@ const Admin: React.FC = () => {
     setDeletingUserId(null);
   };
 
+  const loadUserRoles = useCallback(async () => {
+    const { data, error } = await supabase.from('user_roles').select('*');
+    if (!error && data) {
+      const map: Record<string, AppRole[]> = {};
+      (data as UserRole[]).forEach(r => {
+        if (!map[r.user_id]) map[r.user_id] = [];
+        map[r.user_id].push(r.role);
+      });
+      setUserRoles(map);
+    }
+  }, []);
+
+  const handleSetRole = async (userId: string, newRole: AppRole) => {
+    if (userId === user?.id) {
+      toast.error("Cannot change your own role");
+      return;
+    }
+    setRoleUpdating(userId);
+    try {
+      // Remove all existing roles for this user
+      const { error: deleteError } = await supabase.from('user_roles').delete().eq('user_id', userId);
+      if (deleteError) throw deleteError;
+
+      // Insert the new role
+      const { error: insertError } = await supabase.from('user_roles').insert({ user_id: userId, role: newRole });
+      if (insertError) throw insertError;
+
+      setUserRoles(prev => ({ ...prev, [userId]: [newRole] }));
+      toast.success(`Role updated to ${newRole}`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update role');
+    }
+    setRoleUpdating(null);
+  };
+
+  const handleRemoveAllRoles = async (userId: string) => {
+    if (userId === user?.id) {
+      toast.error("Cannot remove your own roles");
+      return;
+    }
+    setRoleUpdating(userId);
+    try {
+      const { error } = await supabase.from('user_roles').delete().eq('user_id', userId);
+      if (error) throw error;
+      setUserRoles(prev => { const n = { ...prev }; delete n[userId]; return n; });
+      toast.success('All roles removed');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to remove roles');
+    }
+    setRoleUpdating(null);
+  };
+
   const handleExportCSV = (tab: string) => {
     switch (tab) {
       case 'analytics':
@@ -239,6 +297,7 @@ const Admin: React.FC = () => {
         case 'users':
           const { data: profilesData } = await supabase.rpc('admin_get_all_profiles');
           if (profilesData) setProfiles(profilesData as unknown as Profile[]);
+          await loadUserRoles();
           break;
         case 'history':
           const { data: historyData } = await supabase.rpc('admin_get_all_history');
@@ -494,40 +553,74 @@ const Admin: React.FC = () => {
                           <TableHead className="cursor-pointer select-none" onClick={() => setUserSort(s => toggleSort(s, 'created_at'))}>
                             Joined <SortIcon dir={userSort.key === 'created_at' ? userSort.dir : null} />
                           </TableHead>
+                          <TableHead>Role</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {paginatedProfiles.map((p) => (
-                          <TableRow key={p.id}>
-                            <TableCell className="font-mono text-xs">{p.email || '—'}</TableCell>
-                            <TableCell>{p.display_name || '—'}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{formatDate(p.created_at)}</TableCell>
-                            <TableCell className="text-right">
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" disabled={deletingUserId === p.user_id}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will permanently delete <strong>{p.email || 'this user'}</strong> and all their associated data (history, files, roles). This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteUser(p.user_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                      Delete User
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {paginatedProfiles.map((p) => {
+                          const roles = userRoles[p.user_id] || [];
+                          const currentRole = roles[0] || 'none';
+                          const isSelf = p.user_id === user?.id;
+                          return (
+                            <TableRow key={p.id}>
+                              <TableCell className="font-mono text-xs">{p.email || '—'}</TableCell>
+                              <TableCell>{p.display_name || '—'}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{formatDate(p.created_at)}</TableCell>
+                              <TableCell>
+                                <Select
+                                  value={currentRole}
+                                  onValueChange={(val) => {
+                                    if (val === 'none') handleRemoveAllRoles(p.user_id);
+                                    else handleSetRole(p.user_id, val as AppRole);
+                                  }}
+                                  disabled={roleUpdating === p.user_id || isSelf}
+                                >
+                                  <SelectTrigger className="h-7 w-[120px] text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">
+                                      <span className="flex items-center gap-1.5"><User className="w-3 h-3" /> No role</span>
+                                    </SelectItem>
+                                    <SelectItem value="user">
+                                      <span className="flex items-center gap-1.5"><User className="w-3 h-3" /> User</span>
+                                    </SelectItem>
+                                    <SelectItem value="moderator">
+                                      <span className="flex items-center gap-1.5"><ShieldAlert className="w-3 h-3" /> Moderator</span>
+                                    </SelectItem>
+                                    <SelectItem value="admin">
+                                      <span className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> Admin</span>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" disabled={deletingUserId === p.user_id || isSelf}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will permanently delete <strong>{p.email || 'this user'}</strong> and all their associated data (history, files, roles). This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteUser(p.user_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                        Delete User
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )}
