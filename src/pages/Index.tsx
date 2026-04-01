@@ -1,6 +1,7 @@
 import React from 'react';
-import { Activity, Timer, BarChart3, Zap, LogOut, User } from 'lucide-react';
+import { Activity, Timer, BarChart3, Zap, LogOut, User, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAdmin } from '@/hooks/useAdmin';
 import CyberGrid from '@/components/CyberGrid';
 import HeroSection from '@/components/HeroSection';
 import WorkspacePanel from '@/components/WorkspacePanel';
@@ -14,7 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const Index: React.FC = () => {
   const { user, profile, loading, signOut } = useAuth();
-
+  const { isAdmin } = useAdmin();
   return (
     <div className="min-h-screen relative">
       <CyberGrid />
@@ -39,6 +40,18 @@ const Index: React.FC = () => {
                 <span className="text-xs sm:text-sm text-muted-foreground hidden md:block max-w-[150px] truncate">
                   {profile?.display_name || profile?.email || user.email}
                 </span>
+                {isAdmin && (
+                  <Link to="/admin">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-primary/10 border-primary/30 hover:bg-primary/20 hover:scale-105 transition-all duration-200 text-xs sm:text-sm px-2 sm:px-3"
+                    >
+                      <Shield className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Admin</span>
+                    </Button>
+                  </Link>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
