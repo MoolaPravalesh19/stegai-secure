@@ -272,8 +272,18 @@ const WorkspacePanel: React.FC = () => {
       let psnr: number;
 
       if (useNeuralNet && modelsReady) {
-        // Use Neural Network
-        const result = await encodeWithNeuralNet(imageData, secretMessage);
+        if (!encodeKey) {
+          toast({
+            title: "Password required",
+            description: "Neural encryption requires a password to embed the verification header.",
+            variant: "destructive"
+          });
+          setIsProcessing(false);
+          URL.revokeObjectURL(imageUrl);
+          return;
+        }
+        // Use Neural Network (EncryptionNet + shuffle + XOR + LSB)
+        const result = await encodeWithNeuralNet(imageData, secretMessage, encodeKey);
         stegoImageData = result.stegoImageData;
         psnr = result.psnr;
       } else {
@@ -424,8 +434,18 @@ const WorkspacePanel: React.FC = () => {
       let message: string;
 
       if (useNeuralNet && modelsReady) {
-        // Use Neural Network
-        message = await decodeWithNeuralNet(imageData);
+        if (!decodeKey) {
+          toast({
+            title: "Password required",
+            description: "Neural decryption requires the password used during encoding.",
+            variant: "destructive"
+          });
+          setIsProcessing(false);
+          URL.revokeObjectURL(imageUrl);
+          return;
+        }
+        const result = await decodeWithNeuralNet(imageData, decodeKey);
+        message = result.message;
       } else {
         // Use LSB method
         message = decodeWithKey(
@@ -602,16 +622,16 @@ const WorkspacePanel: React.FC = () => {
                 </p>
               </div>
               
-              {!useNeuralNet && (
+              {(
                 <div>
                   <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
                     <Key className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Encryption Key (Optional)
+                    {useNeuralNet ? 'Password (required)' : 'Encryption Key (Optional)'}
                   </label>
                   <div className="relative">
                     <Input
                       type={showEncodeKey ? "text" : "password"}
-                      placeholder="Enter encryption key..."
+                      placeholder={useNeuralNet ? 'Enter password for verification...' : 'Enter encryption key...'}
                       value={encodeKey}
                       onChange={(e) => setEncodeKey(e.target.value)}
                       className="bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 font-mono text-xs sm:text-sm pr-10"
@@ -723,16 +743,16 @@ const WorkspacePanel: React.FC = () => {
                 onImageSelect={setStegoImage}
               />
               
-              {!useNeuralNet && (
+              {(
                 <div>
                   <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
                     <Key className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Decryption Key (if used during encoding)
+                    {useNeuralNet ? 'Password (required)' : 'Decryption Key (if used during encoding)'}
                   </label>
                   <div className="relative">
                     <Input
                       type={showDecodeKey ? "text" : "password"}
-                      placeholder="Enter decryption key..."
+                      placeholder={useNeuralNet ? 'Enter password used during encoding...' : 'Enter decryption key...'}
                       value={decodeKey}
                       onChange={(e) => setDecodeKey(e.target.value)}
                       className="bg-muted/30 border-border/50 focus:border-secondary/50 focus:ring-secondary/20 font-mono text-xs sm:text-sm pr-10"
@@ -746,7 +766,7 @@ const WorkspacePanel: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 sm:mt-2">
-                    Leave empty if no key was used
+                    {useNeuralNet ? 'Required to verify and reveal the hidden message.' : 'Leave empty if no key was used'}
                   </p>
                 </div>
               )}
