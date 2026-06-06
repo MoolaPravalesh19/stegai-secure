@@ -354,6 +354,19 @@ const tensorToImageData = (
 
 // Helpers to convert between ImageData and packed RGB uint8 (256x256x3)
 const resizeImageDataToRGB = (src: ImageData, size: number): Uint8Array => {
+  // Fast path: when source is already the target size, copy RGB directly
+  // to avoid any canvas resampling / alpha-premultiplication that would
+  // corrupt LSB-embedded bits.
+  if (src.width === size && src.height === size) {
+    const rgb = new Uint8Array(size * size * 3);
+    for (let i = 0, j = 0; i < src.data.length; i += 4, j += 3) {
+      rgb[j] = src.data[i];
+      rgb[j + 1] = src.data[i + 1];
+      rgb[j + 2] = src.data[i + 2];
+    }
+    return rgb;
+  }
+
   const tmp = document.createElement('canvas');
   tmp.width = src.width;
   tmp.height = src.height;
