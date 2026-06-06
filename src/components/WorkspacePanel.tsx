@@ -169,6 +169,7 @@ const WorkspacePanel: React.FC = () => {
   const [showDecodeKey, setShowDecodeKey] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [encodedImageUrl, setEncodedImageUrl] = useState<string | null>(null);
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [decodedMessage, setDecodedMessage] = useState<string | null>(null);
   const [encodingTime, setEncodingTime] = useState<number | null>(null);
   const [decodingTime, setDecodingTime] = useState<number | null>(null);
@@ -232,6 +233,7 @@ const WorkspacePanel: React.FC = () => {
 
     setIsProcessing(true);
     setEncodedImageUrl(null);
+    setGeneratedPassword(null);
     setEncodingTime(null);
     setPsnrValue(null);
 
@@ -272,20 +274,11 @@ const WorkspacePanel: React.FC = () => {
       let psnr: number;
 
       if (useNeuralNet && modelsReady) {
-        if (!encodeKey) {
-          toast({
-            title: "Password required",
-            description: "Neural encryption requires a password to embed the verification header.",
-            variant: "destructive"
-          });
-          setIsProcessing(false);
-          URL.revokeObjectURL(imageUrl);
-          return;
-        }
-        // Use Neural Network (EncryptionNet + shuffle + XOR + LSB)
-        const result = await encodeWithNeuralNet(imageData, secretMessage, encodeKey);
+        // Neural mode auto-generates a password — user does not provide one
+        const result = await encodeWithNeuralNet(imageData, secretMessage);
         stegoImageData = result.stegoImageData;
         psnr = result.psnr;
+        setGeneratedPassword(result.password);
       } else {
         // Use LSB method
         const stegoPixels = encodeWithKey(
