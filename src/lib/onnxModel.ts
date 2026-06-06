@@ -15,8 +15,133 @@ let isLoadingDefaults = false;
 let defaultModelsChecked = false;
 
 const IMG_SIZE = 256;
-const DEFAULT_HIDING_MODEL = 'hiding_net.onnx';
-const DEFAULT_REVEAL_MODEL = 'reveal_net.onnx';
+const DEFAULT_HIDING_MODEL = 'encryption_net.onnx';
+const DEFAULT_REVEAL_MODEL = 'decryption_net.onnx';
+
+// --------------------------------------------------------------------------
+// Deterministic helpers (KEY + shuffle indices) — match between encode/decode
+// --------------------------------------------------------------------------
+const SEED = 42;
+
+// Mulberry32 PRNG seeded deterministically (browser-stable, not numpy-compat)
+const makeRng = (seed: number) => {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+let CACHED_KEY: Uint8Array | null = null;
+let CACHED_SHUFFLE_IDX: Int32Array | null = null;
+let CACHED_UNSHUFFLE_IDX: Int32Array | null = null;
+
+const getKey = (): Uint8Array => {
+  if (CACHED_KEY) return CACHED_KEY;
+  const rng = makeRng(SEED);
+  const key = new Uint8Array(IMG_SIZE * IMG_SIZE * 3);
+  for (let i = 0; i < key.length; i++) key[i] = Math.floor(rng() * 256);
+  CACHED_KEY = key;
+  return key;
+};
+
+const getShuffleIndices = (): { idx: Int32Array; inv: Int32Array } => {
+  if (CACHED_SHUFFLE_IDX && CACHED_UNSHUFFLE_IDX) {
+    return { idx: CACHED_SHUFFLE_IDX, inv: CACHED_UNSHUFFLE_IDX };
+  }
+  const n = IMG_SIZE * IMG_SIZE;
+  const idx = new Int32Array(n);
+  for (let i = 0; i < n; i++) idx[i] = i;
+  const rng = makeRng(SEED + 1);
+  // Fisher-Yates
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+  }
+  const inv = new Int32Array(n);
+  for (let i = 0; i < n; i++) inv[idx[i]] = i;
+  CACHED_SHUFFLE_IDX = idx;
+  CACHED_UNSHUFFLE_IDX = inv;
+  return { idx, inv };
+};
+
+const shufflePixels = (rgb: Uint8Array): Uint8Array => {
+  const { idx } = getShuffleIndices();
+  const out = new Uint8Array(rgb.length);
+  for (let i = 0; i < idx.length; i++) {
+    const src = idx[i] * 3;
+    const dst = i * 3;
+    out[dst] = rgb[src];
+    out[dst + 1] = rgb[src + 1];
+    out[dst + 2] = rgb[src + 2];
+  }
+  return out;
+};
+
+const unshufflePixels = (rgb: Uint8Array): Uint8Array => {
+  const { idx } = getShuffleIndices();
+  const out = new Uint8Array(rgb.length);
+  for (let i = 0; i < idx.length; i++) {
+    const src = i * 3;
+    const dst = idx[i] * 3;
+    out[dst] = rgb[src];
+    out[dst + 1] = rgb[src + 1];
+    out[dst + 2] = rgb[src + 2];
+  }
+  return out;
+};
+
+const xorKey = (rgb: Uint8Array): Uint8Array => {
+  const key = getKey();
+  const out = new Uint8Array(rgb.length);
+  for (let i = 0; i < rgb.length; i++) out[i] = rgb[i] ^ key[i];
+  return out;
+};
+
+const sha256Hex = async (text: string): Promise<string> => {
+  const buf = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const END_MARKER = '1111111111111110';
+
+const embedTextLSB = (rgb: Uint8Array, text: string): Uint8Array => {
+  let bits = '';
+  for (const ch of text) bits += ch.charCodeAt(0).toString(2).padStart(8, '0');
+  bits += END_MARKER;
+  if (bits.length > rgb.length) {
+    throw new Error(`Payload too large: ${bits.length} bits > ${rgb.length} bytes`);
+  }
+  const out = new Uint8Array(rgb);
+  for (let i = 0; i < bits.length; i++) {
+    out[i] = (out[i] & 0xFE) | (bits.charCodeAt(i) - 48);
+  }
+  return out;
+};
+
+const extractTextLSB = (rgb: Uint8Array): string => {
+  let bits = '';
+  let chars = '';
+  for (let i = 0; i < rgb.length; i++) {
+    bits += (rgb[i] & 1).toString();
+    if (bits.length >= 16 && bits.endsWith(END_MARKER)) {
+      const payload = bits.slice(0, -16);
+      for (let j = 0; j < payload.length; j += 8) {
+        const byte = payload.slice(j, j + 8);
+        if (byte.length < 8) break;
+        chars += String.fromCharCode(parseInt(byte, 2));
+      }
+      return chars;
+    }
+  }
+  return '';
+};
 
 // Load models from ArrayBuffer
 const loadModelsFromBuffers = async (
