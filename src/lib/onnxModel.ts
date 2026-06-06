@@ -293,43 +293,10 @@ export const isLoadingDefaultModels = (): boolean => {
   return isLoadingDefaults;
 };
 
-// Convert text to binary tensor (matching Python implementation)
-export const textToTensor = (text: string, size: number = IMG_SIZE): Float32Array => {
-  let bits = '';
-  for (const char of text) {
-    bits += char.charCodeAt(0).toString(2).padStart(8, '0');
-  }
-  bits += '00000000'; // End marker
-  
-  const bitArray = bits.split('').map(b => parseFloat(b));
-  const totalSize = size * size;
-  
-  // Pad with zeros if needed
-  while (bitArray.length < totalSize) {
-    bitArray.push(0);
-  }
-  
-  return new Float32Array(bitArray.slice(0, totalSize));
-};
-
-// Convert tensor to text (matching Python implementation)
-export const tensorToText = (tensor: Float32Array): string => {
-  const bits = Array.from(tensor).map(v => v > 0.5 ? 1 : 0);
-  let chars = '';
-  
-  for (let i = 0; i < bits.length; i += 8) {
-    const byte = bits.slice(i, i + 8);
-    if (byte.length < 8) break;
-    
-    const charCode = parseInt(byte.join(''), 2);
-    if (charCode === 0) break; // End marker
-    if (charCode >= 32 && charCode <= 126) {
-      chars += String.fromCharCode(charCode);
-    }
-  }
-  
-  return chars;
-};
+// Kept for backward-compatible imports — no longer used by the neural pipeline.
+export const textToTensor = (text: string, _size: number = IMG_SIZE): Float32Array =>
+  new Float32Array(_size * _size);
+export const tensorToText = (_tensor: Float32Array): string => '';
 
 // Convert ImageData to ONNX tensor (NCHW format: [1, 3, H, W])
 const imageDataToTensor = (imageData: ImageData): Float32Array => {
@@ -375,126 +342,148 @@ const tensorToImageData = (
   return imageData;
 };
 
-// Encode message into cover image using HidingNet
+// Helpers to convert between ImageData and packed RGB uint8 (256x256x3)
+const resizeImageDataToRGB = (src: ImageData, size: number): Uint8Array => {
+  const tmp = document.createElement('canvas');
+  tmp.width = src.width;
+  tmp.height = src.height;
+  tmp.getContext('2d')!.putImageData(src, 0, 0);
+
+  const out = document.createElement('canvas');
+  out.width = size;
+  out.height = size;
+  const octx = out.getContext('2d')!;
+  octx.drawImage(tmp, 0, 0, size, size);
+  const data = octx.getImageData(0, 0, size, size).data;
+
+  const rgb = new Uint8Array(size * size * 3);
+  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+    rgb[j] = data[i];
+    rgb[j + 1] = data[i + 1];
+    rgb[j + 2] = data[i + 2];
+  }
+  return rgb;
+};
+
+const rgbToImageData = (rgb: Uint8Array, size: number): ImageData => {
+  const img = new ImageData(size, size);
+  for (let i = 0, j = 0; j < rgb.length; i += 4, j += 3) {
+    img.data[i] = rgb[j];
+    img.data[i + 1] = rgb[j + 1];
+    img.data[i + 2] = rgb[j + 2];
+    img.data[i + 3] = 255;
+  }
+  return img;
+};
+
+const rgbToFloat32CHW = (rgb: Uint8Array, size: number): Float32Array => {
+  const out = new Float32Array(3 * size * size);
+  const plane = size * size;
+  for (let i = 0, p = 0; p < plane; i += 3, p++) {
+    out[p] = rgb[i] / 255;
+    out[plane + p] = rgb[i + 1] / 255;
+    out[2 * plane + p] = rgb[i + 2] / 255;
+  }
+  return out;
+};
+
+const float32CHWToRGB = (t: Float32Array, size: number): Uint8Array => {
+  const plane = size * size;
+  const rgb = new Uint8Array(plane * 3);
+  for (let p = 0, i = 0; p < plane; p++, i += 3) {
+    rgb[i] = Math.round(Math.max(0, Math.min(1, t[p])) * 255);
+    rgb[i + 1] = Math.round(Math.max(0, Math.min(1, t[plane + p])) * 255);
+    rgb[i + 2] = Math.round(Math.max(0, Math.min(1, t[2 * plane + p])) * 255);
+  }
+  return rgb;
+};
+
+// Encode: EncryptionNet → shuffle → XOR → LSB-embed(sha256(pw)||msg)
 export const encodeWithNeuralNet = async (
   coverImageData: ImageData,
-  message: string
+  message: string,
+  password: string
 ): Promise<{ stegoImageData: ImageData; psnr: number }> => {
-  if (!hidingSession) {
-    throw new Error('HidingNet model not loaded');
-  }
-  
-  const { width, height } = coverImageData;
-  
-  // Resize to 256x256 if needed (model requirement)
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-  canvas.width = IMG_SIZE;
-  canvas.height = IMG_SIZE;
-  
-  // Draw original image scaled to 256x256
-  const tempCanvas = document.createElement('canvas');
-  const tempCtx = tempCanvas.getContext('2d')!;
-  tempCanvas.width = width;
-  tempCanvas.height = height;
-  tempCtx.putImageData(coverImageData, 0, 0);
-  ctx.drawImage(tempCanvas, 0, 0, IMG_SIZE, IMG_SIZE);
-  
-  const resizedImageData = ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE);
-  
-  // Convert cover image to tensor
-  const coverTensor = imageDataToTensor(resizedImageData);
-  
-  // Convert message to binary tensor
-  const messageTensor = textToTensor(message, IMG_SIZE);
-  
-  // Create ONNX tensors
-  const coverOrtTensor = new ort.Tensor('float32', coverTensor, [1, 3, IMG_SIZE, IMG_SIZE]);
-  const messageOrtTensor = new ort.Tensor('float32', messageTensor, [1, 1, IMG_SIZE, IMG_SIZE]);
-  
-  // Run inference
+  if (!hidingSession) throw new Error('EncryptionNet model not loaded');
+  if (!password) throw new Error('Password is required for neural encryption');
+
+  // 1. Resize cover to 256x256 RGB
+  const coverRGB = resizeImageDataToRGB(coverImageData, IMG_SIZE);
+
+  // 2. EncryptionNet
+  const coverTensor = rgbToFloat32CHW(coverRGB, IMG_SIZE);
+  const inT = new ort.Tensor('float32', coverTensor, [1, 3, IMG_SIZE, IMG_SIZE]);
   const feeds: Record<string, ort.Tensor> = {};
-  const inputNames = hidingSession.inputNames;
-  
-  // Handle different input name conventions
-  if (inputNames.includes('cover') && inputNames.includes('message')) {
-    feeds['cover'] = coverOrtTensor;
-    feeds['message'] = messageOrtTensor;
-  } else if (inputNames.length === 2) {
-    feeds[inputNames[0]] = coverOrtTensor;
-    feeds[inputNames[1]] = messageOrtTensor;
-  } else {
-    throw new Error(`Unexpected input names: ${inputNames.join(', ')}`);
+  feeds[hidingSession.inputNames[0]] = inT;
+  const out = await hidingSession.run(feeds);
+  const encTensor = out[hidingSession.outputNames[0]].data as Float32Array;
+  const encRGB = float32CHWToRGB(encTensor, IMG_SIZE);
+
+  // 3. Shuffle pixels  4. XOR with KEY
+  const shuffled = shufflePixels(encRGB);
+  const xored = xorKey(shuffled);
+
+  // 5. LSB embed: sha256(password) || message  + end marker
+  const hash = await sha256Hex(password);
+  const payload = `${hash}||${message}`;
+  const cipher = embedTextLSB(xored, payload);
+
+  const stegoImageData = rgbToImageData(cipher, IMG_SIZE);
+
+  // PSNR vs resized cover (both 256x256)
+  const coverFull = new Uint8ClampedArray(IMG_SIZE * IMG_SIZE * 4);
+  for (let i = 0, j = 0; j < coverRGB.length; i += 4, j += 3) {
+    coverFull[i] = coverRGB[j];
+    coverFull[i + 1] = coverRGB[j + 1];
+    coverFull[i + 2] = coverRGB[j + 2];
+    coverFull[i + 3] = 255;
   }
-  
-  const results = await hidingSession.run(feeds);
-  const outputName = hidingSession.outputNames[0];
-  const stegoTensor = results[outputName].data as Float32Array;
-  
-  // Convert stego tensor back to ImageData
-  const stegoImageDataSmall = tensorToImageData(stegoTensor, IMG_SIZE, IMG_SIZE);
-  
-  // Scale back to original size
-  const outputCanvas = document.createElement('canvas');
-  const outputCtx = outputCanvas.getContext('2d')!;
-  outputCanvas.width = width;
-  outputCanvas.height = height;
-  
-  const stegoTempCanvas = document.createElement('canvas');
-  const stegoTempCtx = stegoTempCanvas.getContext('2d')!;
-  stegoTempCanvas.width = IMG_SIZE;
-  stegoTempCanvas.height = IMG_SIZE;
-  stegoTempCtx.putImageData(stegoImageDataSmall, 0, 0);
-  outputCtx.drawImage(stegoTempCanvas, 0, 0, width, height);
-  
-  const stegoImageData = outputCtx.getImageData(0, 0, width, height);
-  
-  // Calculate PSNR
-  const psnr = calculatePSNR(coverImageData.data, stegoImageData.data);
-  
+  const psnr = calculatePSNR(coverFull, stegoImageData.data);
+
   return { stegoImageData, psnr };
 };
 
-// Decode message from stego image using RevealNet
+// Decode: LSB-extract → XOR → unshuffle → DecryptionNet; verify password hash
 export const decodeWithNeuralNet = async (
-  stegoImageData: ImageData
-): Promise<string> => {
-  if (!revealSession) {
-    throw new Error('RevealNet model not loaded');
+  stegoImageData: ImageData,
+  password: string
+): Promise<{ message: string; recoveredImageData: ImageData; verified: boolean }> => {
+  if (!revealSession) throw new Error('DecryptionNet model not loaded');
+  if (!password) throw new Error('Password is required for neural decryption');
+
+  // Force 256x256 RGB working buffer (image should already be 256 from encode)
+  const cipherRGB = resizeImageDataToRGB(stegoImageData, IMG_SIZE);
+
+  // 1. Extract LSB payload
+  const extracted = extractTextLSB(cipherRGB);
+  if (!extracted.includes('||')) {
+    throw new Error('Verification header missing or corrupted in stego image');
   }
-  
-  const { width, height } = stegoImageData;
-  
-  // Resize to 256x256 if needed
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-  canvas.width = IMG_SIZE;
-  canvas.height = IMG_SIZE;
-  
-  const tempCanvas = document.createElement('canvas');
-  const tempCtx = tempCanvas.getContext('2d')!;
-  tempCanvas.width = width;
-  tempCanvas.height = height;
-  tempCtx.putImageData(stegoImageData, 0, 0);
-  ctx.drawImage(tempCanvas, 0, 0, IMG_SIZE, IMG_SIZE);
-  
-  const resizedImageData = ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE);
-  
-  // Convert to tensor
-  const stegoTensor = imageDataToTensor(resizedImageData);
-  const stegoOrtTensor = new ort.Tensor('float32', stegoTensor, [1, 3, IMG_SIZE, IMG_SIZE]);
-  
-  // Run inference
+  const sep = extracted.indexOf('||');
+  const storedHash = extracted.slice(0, sep);
+  const actualMessage = extracted.slice(sep + 2);
+
+  // 2. Verify password
+  const inputHash = await sha256Hex(password);
+  const verified = inputHash === storedHash;
+
+  // 3. Recover image: XOR → unshuffle → DecryptionNet
+  const dexor = xorKey(cipherRGB);
+  const deshuffled = unshufflePixels(dexor);
+  const recTensor = rgbToFloat32CHW(deshuffled, IMG_SIZE);
+  const inT = new ort.Tensor('float32', recTensor, [1, 3, IMG_SIZE, IMG_SIZE]);
   const feeds: Record<string, ort.Tensor> = {};
-  const inputNames = revealSession.inputNames;
-  feeds[inputNames[0]] = stegoOrtTensor;
-  
-  const results = await revealSession.run(feeds);
-  const outputName = revealSession.outputNames[0];
-  const revealedTensor = results[outputName].data as Float32Array;
-  
-  // Convert tensor to text
-  return tensorToText(revealedTensor);
+  feeds[revealSession.inputNames[0]] = inT;
+  const out = await revealSession.run(feeds);
+  const recoveredFloat = out[revealSession.outputNames[0]].data as Float32Array;
+  const recoveredRGB = float32CHWToRGB(recoveredFloat, IMG_SIZE);
+  const recoveredImageData = rgbToImageData(recoveredRGB, IMG_SIZE);
+
+  if (!verified) {
+    throw new Error('Access denied: incorrect password');
+  }
+
+  return { message: actualMessage, recoveredImageData, verified };
 };
 
 // Calculate PSNR
