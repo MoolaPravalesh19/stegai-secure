@@ -109,6 +109,16 @@ const sha256Hex = async (text: string): Promise<string> => {
     .join('');
 };
 
+// Generate a cryptographically strong password (alphanumeric + symbols)
+const generatePassword = (length: number = 16): string => {
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  let out = '';
+  for (let i = 0; i < length; i++) out += charset[bytes[i] % charset.length];
+  return out;
+};
+
 const END_MARKER = '1111111111111110';
 
 const embedTextLSB = (rgb: Uint8Array, text: string): Uint8Array => {
@@ -402,10 +412,11 @@ const float32CHWToRGB = (t: Float32Array, size: number): Uint8Array => {
 export const encodeWithNeuralNet = async (
   coverImageData: ImageData,
   message: string,
-  password: string
-): Promise<{ stegoImageData: ImageData; psnr: number }> => {
+  password?: string
+): Promise<{ stegoImageData: ImageData; psnr: number; password: string }> => {
   if (!hidingSession) throw new Error('EncryptionNet model not loaded');
-  if (!password) throw new Error('Password is required for neural encryption');
+  // Auto-generate a strong password if one isn't supplied
+  const finalPassword = password && password.length > 0 ? password : generatePassword(16);
 
   // 1. Resize cover to 256x256 RGB
   const coverRGB = resizeImageDataToRGB(coverImageData, IMG_SIZE);
@@ -424,7 +435,7 @@ export const encodeWithNeuralNet = async (
   const xored = xorKey(shuffled);
 
   // 5. LSB embed: sha256(password) || message  + end marker
-  const hash = await sha256Hex(password);
+  const hash = await sha256Hex(finalPassword);
   const payload = `${hash}||${message}`;
   const cipher = embedTextLSB(xored, payload);
 
@@ -440,7 +451,7 @@ export const encodeWithNeuralNet = async (
   }
   const psnr = calculatePSNR(coverFull, stegoImageData.data);
 
-  return { stegoImageData, psnr };
+  return { stegoImageData, psnr, password: finalPassword };
 };
 
 // Decode: LSB-extract → XOR → unshuffle → DecryptionNet; verify password hash

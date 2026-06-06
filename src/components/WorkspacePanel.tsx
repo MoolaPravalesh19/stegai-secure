@@ -169,6 +169,7 @@ const WorkspacePanel: React.FC = () => {
   const [showDecodeKey, setShowDecodeKey] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [encodedImageUrl, setEncodedImageUrl] = useState<string | null>(null);
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [decodedMessage, setDecodedMessage] = useState<string | null>(null);
   const [encodingTime, setEncodingTime] = useState<number | null>(null);
   const [decodingTime, setDecodingTime] = useState<number | null>(null);
@@ -232,6 +233,7 @@ const WorkspacePanel: React.FC = () => {
 
     setIsProcessing(true);
     setEncodedImageUrl(null);
+    setGeneratedPassword(null);
     setEncodingTime(null);
     setPsnrValue(null);
 
@@ -272,20 +274,11 @@ const WorkspacePanel: React.FC = () => {
       let psnr: number;
 
       if (useNeuralNet && modelsReady) {
-        if (!encodeKey) {
-          toast({
-            title: "Password required",
-            description: "Neural encryption requires a password to embed the verification header.",
-            variant: "destructive"
-          });
-          setIsProcessing(false);
-          URL.revokeObjectURL(imageUrl);
-          return;
-        }
-        // Use Neural Network (EncryptionNet + shuffle + XOR + LSB)
-        const result = await encodeWithNeuralNet(imageData, secretMessage, encodeKey);
+        // Neural mode auto-generates a password — user does not provide one
+        const result = await encodeWithNeuralNet(imageData, secretMessage);
         stegoImageData = result.stegoImageData;
         psnr = result.psnr;
+        setGeneratedPassword(result.password);
       } else {
         // Use LSB method
         const stegoPixels = encodeWithKey(
@@ -622,16 +615,16 @@ const WorkspacePanel: React.FC = () => {
                 </p>
               </div>
               
-              {(
+              {!useNeuralNet && (
                 <div>
                   <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
                     <Key className="w-3 h-3 sm:w-4 sm:h-4" />
-                    {useNeuralNet ? 'Password (required)' : 'Encryption Key (Optional)'}
+                    Encryption Key (Optional)
                   </label>
                   <div className="relative">
                     <Input
                       type={showEncodeKey ? "text" : "password"}
-                      placeholder={useNeuralNet ? 'Enter password for verification...' : 'Enter encryption key...'}
+                      placeholder={'Enter encryption key...'}
                       value={encodeKey}
                       onChange={(e) => setEncodeKey(e.target.value)}
                       className="bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 font-mono text-xs sm:text-sm pr-10"
@@ -665,6 +658,15 @@ const WorkspacePanel: React.FC = () => {
                       </p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {useNeuralNet && (
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-xs sm:text-sm text-muted-foreground flex items-start gap-2">
+                  <Brain className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span>
+                    Neural mode auto-generates a one-time password during encoding. It will appear below after the message is hidden — copy it and use it to decode.
+                  </span>
                 </div>
               )}
               
@@ -716,6 +718,35 @@ const WorkspacePanel: React.FC = () => {
                     alt="Stego image" 
                     className="w-full h-32 sm:h-40 object-contain rounded-lg border border-border/50 bg-muted/20"
                   />
+                  {generatedPassword && (
+                    <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Key className="w-3 h-3 sm:w-4 sm:h-4 text-warning" />
+                        <span className="text-xs sm:text-sm font-medium text-warning">
+                          Generated Password — save this to decode
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-2 rounded bg-muted/40 border border-border/50 font-mono text-xs sm:text-sm break-all select-all">
+                          {generatedPassword}
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedPassword);
+                            toast({ title: "Copied!", description: "Password copied to clipboard" });
+                          }}
+                          className="text-xs shrink-0"
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        This password is shown only once. Without it, the message cannot be recovered.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
