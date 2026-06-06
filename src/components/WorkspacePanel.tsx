@@ -615,16 +615,16 @@ const WorkspacePanel: React.FC = () => {
                 </p>
               </div>
               
-              {(
+              {!useNeuralNet && (
                 <div>
                   <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
                     <Key className="w-3 h-3 sm:w-4 sm:h-4" />
-                    {useNeuralNet ? 'Password (required)' : 'Encryption Key (Optional)'}
+                    Encryption Key (Optional)
                   </label>
                   <div className="relative">
                     <Input
                       type={showEncodeKey ? "text" : "password"}
-                      placeholder={useNeuralNet ? 'Enter password for verification...' : 'Enter encryption key...'}
+                      placeholder={'Enter encryption key...'}
                       value={encodeKey}
                       onChange={(e) => setEncodeKey(e.target.value)}
                       className="bg-muted/30 border-border/50 focus:border-primary/50 focus:ring-primary/20 font-mono text-xs sm:text-sm pr-10"
@@ -658,6 +658,15 @@ const WorkspacePanel: React.FC = () => {
                       </p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {useNeuralNet && (
+                <div className="p-3 rounded-lg bg-muted/30 border border-border/50 text-xs sm:text-sm text-muted-foreground flex items-start gap-2">
+                  <Brain className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span>
+                    Neural mode auto-generates a one-time password during encoding. It will appear below after the message is hidden — copy it and use it to decode.
+                  </span>
                 </div>
               )}
               
