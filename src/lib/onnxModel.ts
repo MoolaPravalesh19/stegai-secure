@@ -109,6 +109,16 @@ const sha256Hex = async (text: string): Promise<string> => {
     .join('');
 };
 
+// Generate a cryptographically strong password (alphanumeric + symbols)
+const generatePassword = (length: number = 16): string => {
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  let out = '';
+  for (let i = 0; i < length; i++) out += charset[bytes[i] % charset.length];
+  return out;
+};
+
 const END_MARKER = '1111111111111110';
 
 const embedTextLSB = (rgb: Uint8Array, text: string): Uint8Array => {
