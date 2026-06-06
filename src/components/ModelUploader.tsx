@@ -65,7 +65,7 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
     if (!hidingFile || !revealFile) {
       toast({
         title: "Missing files",
-        description: "Please upload both hiding_net.onnx and reveal_net.onnx",
+        description: "Please upload both encryption_net.onnx and decryption_net.onnx",
         variant: "destructive"
       });
       return;
@@ -190,7 +190,7 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
             ) : (
               <>
                 <Upload className="w-6 h-6 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">hiding_net.onnx</span>
+                <span className="text-xs text-muted-foreground">encryption_net.onnx</span>
               </>
             )}
           </div>
@@ -223,7 +223,7 @@ const ModelUploader: React.FC<ModelUploaderProps> = ({ onModelsLoaded }) => {
             ) : (
               <>
                 <Upload className="w-6 h-6 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">reveal_net.onnx</span>
+                <span className="text-xs text-muted-foreground">decryption_net.onnx</span>
               </>
             )}
           </div>
