@@ -718,6 +718,35 @@ const WorkspacePanel: React.FC = () => {
                     alt="Stego image" 
                     className="w-full h-32 sm:h-40 object-contain rounded-lg border border-border/50 bg-muted/20"
                   />
+                  {generatedPassword && (
+                    <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Key className="w-3 h-3 sm:w-4 sm:h-4 text-warning" />
+                        <span className="text-xs sm:text-sm font-medium text-warning">
+                          Generated Password — save this to decode
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-2 rounded bg-muted/40 border border-border/50 font-mono text-xs sm:text-sm break-all select-all">
+                          {generatedPassword}
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedPassword);
+                            toast({ title: "Copied!", description: "Password copied to clipboard" });
+                          }}
+                          className="text-xs shrink-0"
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        This password is shown only once. Without it, the message cannot be recovered.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
