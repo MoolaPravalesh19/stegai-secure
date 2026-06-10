@@ -196,6 +196,69 @@ const WorkspacePanel: React.FC = () => {
     return 10 * Math.log10((255 * 255) / mse);
   };
 
+  // Resize an arbitrary image File to a target size and return ImageData (RGBA)
+  const fileToImageData = async (file: File, size: number): Promise<ImageData> => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = rej;
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    return ctx.getImageData(0, 0, size, size);
+  };
+
+  // Compute MSE, PSNR, max abs error and a lightweight global SSIM over RGB channels
+  const computeImageMetrics = (
+    a: Uint8ClampedArray,
+    b: Uint8ClampedArray
+  ): { psnr: number; mse: number; ssim: number; maxError: number } => {
+    let sse = 0;
+    let count = 0;
+    let maxErr = 0;
+    let meanA = 0, meanB = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        const va = a[i + c];
+        const vb = b[i + c];
+        const d = va - vb;
+        sse += d * d;
+        const ad = Math.abs(d);
+        if (ad > maxErr) maxErr = ad;
+        meanA += va;
+        meanB += vb;
+        count++;
+      }
+    }
+    const mse = sse / count;
+    const psnr = mse === 0 ? Infinity : 10 * Math.log10((255 * 255) / mse);
+    meanA /= count;
+    meanB /= count;
+    let varA = 0, varB = 0, cov = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        const da = a[i + c] - meanA;
+        const db = b[i + c] - meanB;
+        varA += da * da;
+        varB += db * db;
+        cov += da * db;
+      }
+    }
+    varA /= count; varB /= count; cov /= count;
+    const C1 = (0.01 * 255) ** 2;
+    const C2 = (0.03 * 255) ** 2;
+    const ssim =
+      ((2 * meanA * meanB + C1) * (2 * cov + C2)) /
+      ((meanA * meanA + meanB * meanB + C1) * (varA + varB + C2));
+    return { psnr, mse, ssim, maxError: maxErr };
+  };
+
   const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
     if (!password) return { score: 0, label: '', color: '' };
     
