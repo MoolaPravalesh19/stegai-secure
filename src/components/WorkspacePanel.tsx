@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Lock, Unlock, Loader2, Sparkles, Key, Eye, EyeOff, Download, ImageIcon, MessageSquare, Brain, Zap } from 'lucide-react';
+import { Lock, Unlock, Loader2, Sparkles, Key, Eye, EyeOff, Download, ImageIcon, MessageSquare, Brain, Zap, BarChart3 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
 import ModelUploader from './ModelUploader';
@@ -162,6 +162,7 @@ const decodeWithKey = (
 const WorkspacePanel: React.FC = () => {
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [stegoImage, setStegoImage] = useState<File | null>(null);
+  const [originalRefImage, setOriginalRefImage] = useState<File | null>(null);
   const [secretMessage, setSecretMessage] = useState('');
   const [encodeKey, setEncodeKey] = useState('');
   const [decodeKey, setDecodeKey] = useState('');
@@ -174,6 +175,13 @@ const WorkspacePanel: React.FC = () => {
   const [encodingTime, setEncodingTime] = useState<number | null>(null);
   const [decodingTime, setDecodingTime] = useState<number | null>(null);
   const [psnrValue, setPsnrValue] = useState<number | null>(null);
+  const [recoveredImageUrl, setRecoveredImageUrl] = useState<string | null>(null);
+  const [decodeMetrics, setDecodeMetrics] = useState<{
+    psnr: number;
+    mse: number;
+    ssim: number;
+    maxError: number;
+  } | null>(null);
   const [useNeuralNet, setUseNeuralNet] = useState(false);
   const [modelsReady, setModelsReady] = useState(areModelsLoaded());
 
@@ -186,6 +194,69 @@ const WorkspacePanel: React.FC = () => {
     mse /= original.length;
     if (mse === 0) return Infinity;
     return 10 * Math.log10((255 * 255) / mse);
+  };
+
+  // Resize an arbitrary image File to a target size and return ImageData (RGBA)
+  const fileToImageData = async (file: File, size: number): Promise<ImageData> => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = rej;
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    return ctx.getImageData(0, 0, size, size);
+  };
+
+  // Compute MSE, PSNR, max abs error and a lightweight global SSIM over RGB channels
+  const computeImageMetrics = (
+    a: Uint8ClampedArray,
+    b: Uint8ClampedArray
+  ): { psnr: number; mse: number; ssim: number; maxError: number } => {
+    let sse = 0;
+    let count = 0;
+    let maxErr = 0;
+    let meanA = 0, meanB = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        const va = a[i + c];
+        const vb = b[i + c];
+        const d = va - vb;
+        sse += d * d;
+        const ad = Math.abs(d);
+        if (ad > maxErr) maxErr = ad;
+        meanA += va;
+        meanB += vb;
+        count++;
+      }
+    }
+    const mse = sse / count;
+    const psnr = mse === 0 ? Infinity : 10 * Math.log10((255 * 255) / mse);
+    meanA /= count;
+    meanB /= count;
+    let varA = 0, varB = 0, cov = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        const da = a[i + c] - meanA;
+        const db = b[i + c] - meanB;
+        varA += da * da;
+        varB += db * db;
+        cov += da * db;
+      }
+    }
+    varA /= count; varB /= count; cov /= count;
+    const C1 = (0.01 * 255) ** 2;
+    const C2 = (0.03 * 255) ** 2;
+    const ssim =
+      ((2 * meanA * meanB + C1) * (2 * cov + C2)) /
+      ((meanA * meanA + meanB * meanB + C1) * (varA + varB + C2));
+    return { psnr, mse, ssim, maxError: maxErr };
   };
 
   const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
@@ -403,6 +474,8 @@ const WorkspacePanel: React.FC = () => {
     setIsProcessing(true);
     setDecodedMessage(null);
     setDecodingTime(null);
+    setRecoveredImageUrl(null);
+    setDecodeMetrics(null);
 
     const startTime = performance.now();
 
@@ -425,6 +498,7 @@ const WorkspacePanel: React.FC = () => {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
       let message: string;
+      let recoveredImageData: ImageData | null = null;
 
       if (useNeuralNet && modelsReady) {
         if (!decodeKey) {
@@ -439,6 +513,7 @@ const WorkspacePanel: React.FC = () => {
         }
         const result = await decodeWithNeuralNet(imageData, decodeKey);
         message = result.message;
+        recoveredImageData = result.recoveredImageData;
       } else {
         // Use LSB method
         message = decodeWithKey(
@@ -461,6 +536,29 @@ const WorkspacePanel: React.FC = () => {
       }
 
       setDecodedMessage(message);
+
+      // If neural mode produced a recovered image, render it and (optionally)
+      // compute metrics against a user-supplied original reference.
+      if (recoveredImageData) {
+        const recCanvas = document.createElement('canvas');
+        recCanvas.width = recoveredImageData.width;
+        recCanvas.height = recoveredImageData.height;
+        recCanvas.getContext('2d')!.putImageData(recoveredImageData, 0, 0);
+        setRecoveredImageUrl(recCanvas.toDataURL('image/png'));
+
+        if (originalRefImage) {
+          try {
+            const refData = await fileToImageData(
+              originalRefImage,
+              recoveredImageData.width
+            );
+            const metrics = computeImageMetrics(refData.data, recoveredImageData.data);
+            setDecodeMetrics(metrics);
+          } catch (e) {
+            console.error('Metrics computation failed:', e);
+          }
+        }
+      }
 
       const endTime = performance.now();
       setDecodingTime(Math.round(endTime - startTime));
@@ -532,7 +630,7 @@ const WorkspacePanel: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [stegoImage, decodeKey, useNeuralNet, modelsReady]);
+  }, [stegoImage, decodeKey, useNeuralNet, modelsReady, originalRefImage]);
 
   const handleDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
@@ -778,7 +876,14 @@ const WorkspacePanel: React.FC = () => {
                 label="Stego Image" 
                 onImageSelect={setStegoImage}
               />
-              
+
+              {useNeuralNet && (
+                <ImageUploader
+                  label="Original Image (optional — for quality metrics)"
+                  onImageSelect={setOriginalRefImage}
+                />
+              )}
+
               {(
                 <div>
                   <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
@@ -854,6 +959,76 @@ const WorkspacePanel: React.FC = () => {
                       {decodedMessage}
                     </p>
                   </div>
+                </div>
+              )}
+
+              {recoveredImageUrl && (
+                <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-primary/5 border border-primary/20 animate-fade-in space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                      <span className="text-xs sm:text-sm font-medium text-primary">
+                        Decrypted Image &amp; Quality Metrics
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownload(recoveredImageUrl, `decrypted_${Date.now()}.png`)}
+                      className="text-xs"
+                    >
+                      <Download className="w-3 h-3 mr-1" />
+                      Download
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {originalRefImage && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Original</p>
+                        <img
+                          src={URL.createObjectURL(originalRefImage)}
+                          alt="Original reference"
+                          className="w-full h-32 sm:h-40 object-contain rounded-lg border border-border/50 bg-muted/20"
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Decrypted</p>
+                      <img
+                        src={recoveredImageUrl}
+                        alt="Recovered image"
+                        className="w-full h-32 sm:h-40 object-contain rounded-lg border border-border/50 bg-muted/20"
+                      />
+                    </div>
+                  </div>
+
+                  {decodeMetrics ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">PSNR</p>
+                        <p className="font-mono text-sm text-foreground">
+                          {isFinite(decodeMetrics.psnr) ? `${decodeMetrics.psnr.toFixed(2)} dB` : '∞'}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">SSIM</p>
+                        <p className="font-mono text-sm text-foreground">{decodeMetrics.ssim.toFixed(4)}</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">MSE</p>
+                        <p className="font-mono text-sm text-foreground">{decodeMetrics.mse.toFixed(2)}</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Max Err</p>
+                        <p className="font-mono text-sm text-foreground">{decodeMetrics.maxError}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Upload the original image above to compute PSNR / SSIM / MSE between the original and decrypted image.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
