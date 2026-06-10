@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Lock, Unlock, Loader2, Sparkles, Key, Eye, EyeOff, Download, ImageIcon, MessageSquare, Brain, Zap } from 'lucide-react';
+import { Lock, Unlock, Loader2, Sparkles, Key, Eye, EyeOff, Download, ImageIcon, MessageSquare, Brain, Zap, BarChart3 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
 import ModelUploader from './ModelUploader';
@@ -162,6 +162,7 @@ const decodeWithKey = (
 const WorkspacePanel: React.FC = () => {
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [stegoImage, setStegoImage] = useState<File | null>(null);
+  const [originalRefImage, setOriginalRefImage] = useState<File | null>(null);
   const [secretMessage, setSecretMessage] = useState('');
   const [encodeKey, setEncodeKey] = useState('');
   const [decodeKey, setDecodeKey] = useState('');
@@ -174,6 +175,13 @@ const WorkspacePanel: React.FC = () => {
   const [encodingTime, setEncodingTime] = useState<number | null>(null);
   const [decodingTime, setDecodingTime] = useState<number | null>(null);
   const [psnrValue, setPsnrValue] = useState<number | null>(null);
+  const [recoveredImageUrl, setRecoveredImageUrl] = useState<string | null>(null);
+  const [decodeMetrics, setDecodeMetrics] = useState<{
+    psnr: number;
+    mse: number;
+    ssim: number;
+    maxError: number;
+  } | null>(null);
   const [useNeuralNet, setUseNeuralNet] = useState(false);
   const [modelsReady, setModelsReady] = useState(areModelsLoaded());
 
