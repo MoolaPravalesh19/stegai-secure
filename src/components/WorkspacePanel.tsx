@@ -876,7 +876,14 @@ const WorkspacePanel: React.FC = () => {
                 label="Stego Image" 
                 onImageSelect={setStegoImage}
               />
-              
+
+              {useNeuralNet && (
+                <ImageUploader
+                  label="Original Image (optional — for quality metrics)"
+                  onImageSelect={setOriginalRefImage}
+                />
+              )}
+
               {(
                 <div>
                   <label className="text-xs sm:text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
