@@ -961,6 +961,76 @@ const WorkspacePanel: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {recoveredImageUrl && (
+                <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-primary/5 border border-primary/20 animate-fade-in space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                      <span className="text-xs sm:text-sm font-medium text-primary">
+                        Decrypted Image &amp; Quality Metrics
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownload(recoveredImageUrl, `decrypted_${Date.now()}.png`)}
+                      className="text-xs"
+                    >
+                      <Download className="w-3 h-3 mr-1" />
+                      Download
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {originalRefImage && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Original</p>
+                        <img
+                          src={URL.createObjectURL(originalRefImage)}
+                          alt="Original reference"
+                          className="w-full h-32 sm:h-40 object-contain rounded-lg border border-border/50 bg-muted/20"
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Decrypted</p>
+                      <img
+                        src={recoveredImageUrl}
+                        alt="Recovered image"
+                        className="w-full h-32 sm:h-40 object-contain rounded-lg border border-border/50 bg-muted/20"
+                      />
+                    </div>
+                  </div>
+
+                  {decodeMetrics ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">PSNR</p>
+                        <p className="font-mono text-sm text-foreground">
+                          {isFinite(decodeMetrics.psnr) ? `${decodeMetrics.psnr.toFixed(2)} dB` : '∞'}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">SSIM</p>
+                        <p className="font-mono text-sm text-foreground">{decodeMetrics.ssim.toFixed(4)}</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">MSE</p>
+                        <p className="font-mono text-sm text-foreground">{decodeMetrics.mse.toFixed(2)}</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Max Err</p>
+                        <p className="font-mono text-sm text-foreground">{decodeMetrics.maxError}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Upload the original image above to compute PSNR / SSIM / MSE between the original and decrypted image.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </GlassCard>
         </TabsContent>
