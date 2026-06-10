@@ -474,6 +474,8 @@ const WorkspacePanel: React.FC = () => {
     setIsProcessing(true);
     setDecodedMessage(null);
     setDecodingTime(null);
+    setRecoveredImageUrl(null);
+    setDecodeMetrics(null);
 
     const startTime = performance.now();
 
@@ -496,6 +498,7 @@ const WorkspacePanel: React.FC = () => {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
       let message: string;
+      let recoveredImageData: ImageData | null = null;
 
       if (useNeuralNet && modelsReady) {
         if (!decodeKey) {
@@ -510,6 +513,7 @@ const WorkspacePanel: React.FC = () => {
         }
         const result = await decodeWithNeuralNet(imageData, decodeKey);
         message = result.message;
+        recoveredImageData = result.recoveredImageData;
       } else {
         // Use LSB method
         message = decodeWithKey(
@@ -532,6 +536,29 @@ const WorkspacePanel: React.FC = () => {
       }
 
       setDecodedMessage(message);
+
+      // If neural mode produced a recovered image, render it and (optionally)
+      // compute metrics against a user-supplied original reference.
+      if (recoveredImageData) {
+        const recCanvas = document.createElement('canvas');
+        recCanvas.width = recoveredImageData.width;
+        recCanvas.height = recoveredImageData.height;
+        recCanvas.getContext('2d')!.putImageData(recoveredImageData, 0, 0);
+        setRecoveredImageUrl(recCanvas.toDataURL('image/png'));
+
+        if (originalRefImage) {
+          try {
+            const refData = await fileToImageData(
+              originalRefImage,
+              recoveredImageData.width
+            );
+            const metrics = computeImageMetrics(refData.data, recoveredImageData.data);
+            setDecodeMetrics(metrics);
+          } catch (e) {
+            console.error('Metrics computation failed:', e);
+          }
+        }
+      }
 
       const endTime = performance.now();
       setDecodingTime(Math.round(endTime - startTime));
