@@ -630,7 +630,7 @@ const WorkspacePanel: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [stegoImage, decodeKey, useNeuralNet, modelsReady]);
+  }, [stegoImage, decodeKey, useNeuralNet, modelsReady, originalRefImage]);
 
   const handleDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
