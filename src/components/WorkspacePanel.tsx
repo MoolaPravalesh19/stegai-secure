@@ -966,9 +966,9 @@ const WorkspacePanel: React.FC = () => {
                 <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-primary/5 border border-primary/20 animate-fade-in space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                      <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                      <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
                       <span className="text-xs sm:text-sm font-medium text-primary">
-                        Decrypted Image &amp; Quality Metrics
+                        Decrypted Image
                       </span>
                     </div>
                     <Button
@@ -1002,6 +1002,20 @@ const WorkspacePanel: React.FC = () => {
                       />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {recoveredImageUrl && (
+                <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-accent/5 border border-accent/20 animate-fade-in space-y-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 text-accent" />
+                    <span className="text-xs sm:text-sm font-medium text-accent">
+                      Metrics Evaluation
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Quality comparison between the original cover image and the decrypted output.
+                  </p>
 
                   {decodeMetrics ? (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
