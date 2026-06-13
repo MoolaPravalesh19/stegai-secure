@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Lock, Unlock, Loader2, Sparkles, Key, Eye, EyeOff, Download, ImageIcon, MessageSquare, Brain, Zap, BarChart3 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
@@ -159,7 +159,17 @@ const decodeWithKey = (
   return bitsToText(bits);
 };
 
-const WorkspacePanel: React.FC = () => {
+export interface DecodeMetricsPayload {
+  metrics: { psnr: number; mse: number; ssim: number; maxError: number } | null;
+  recoveredImageUrl: string | null;
+  originalRefImage: File | null;
+}
+
+interface WorkspacePanelProps {
+  onDecodeMetricsChange?: (payload: DecodeMetricsPayload) => void;
+}
+
+const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }) => {
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [stegoImage, setStegoImage] = useState<File | null>(null);
   const [originalRefImage, setOriginalRefImage] = useState<File | null>(null);
@@ -184,6 +194,14 @@ const WorkspacePanel: React.FC = () => {
   } | null>(null);
   const [useNeuralNet, setUseNeuralNet] = useState(false);
   const [modelsReady, setModelsReady] = useState(areModelsLoaded());
+
+  useEffect(() => {
+    onDecodeMetricsChange?.({
+      metrics: decodeMetrics,
+      recoveredImageUrl,
+      originalRefImage,
+    });
+  }, [decodeMetrics, recoveredImageUrl, originalRefImage, onDecodeMetricsChange]);
 
   const calculatePSNR = (original: Uint8ClampedArray, stego: Uint8ClampedArray): number => {
     let mse = 0;
@@ -1005,46 +1023,6 @@ const WorkspacePanel: React.FC = () => {
                 </div>
               )}
 
-              {recoveredImageUrl && (
-                <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-accent/5 border border-accent/20 animate-fade-in space-y-3">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 text-accent" />
-                    <span className="text-xs sm:text-sm font-medium text-accent">
-                      Metrics Evaluation
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Quality comparison between the original cover image and the decrypted output.
-                  </p>
-
-                  {decodeMetrics ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">PSNR</p>
-                        <p className="font-mono text-sm text-foreground">
-                          {isFinite(decodeMetrics.psnr) ? `${decodeMetrics.psnr.toFixed(2)} dB` : '∞'}
-                        </p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">SSIM</p>
-                        <p className="font-mono text-sm text-foreground">{decodeMetrics.ssim.toFixed(4)}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">MSE</p>
-                        <p className="font-mono text-sm text-foreground">{decodeMetrics.mse.toFixed(2)}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-muted/30 border border-border/50">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Max Err</p>
-                        <p className="font-mono text-sm text-foreground">{decodeMetrics.maxError}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Upload the original image above to compute PSNR / SSIM / MSE between the original and decrypted image.
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           </GlassCard>
         </TabsContent>
