@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Activity, Timer, BarChart3, Zap, LogOut, User, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import CyberGrid from '@/components/CyberGrid';
 import HeroSection from '@/components/HeroSection';
 import WorkspacePanel from '@/components/WorkspacePanel';
+import MetricsEvaluationSection from '@/components/MetricsEvaluationSection';
 import MetricCard from '@/components/MetricCard';
 import ComparisonSlider from '@/components/ComparisonSlider';
 import HistorySidebar from '@/components/HistorySidebar';
@@ -16,6 +17,11 @@ import { useAuth } from '@/hooks/useAuth';
 const Index: React.FC = () => {
   const { user, profile, loading, signOut } = useAuth();
   const { isAdmin } = useAdmin();
+  const [decodeMetricsState, setDecodeMetricsState] = useState<{
+    metrics: { psnr: number; mse: number; ssim: number; maxError: number } | null;
+    recoveredImageUrl: string | null;
+    originalRefImage: File | null;
+  }>({ metrics: null, recoveredImageUrl: null, originalRefImage: null });
   return (
     <div className="min-h-screen relative">
       <CyberGrid />
@@ -140,9 +146,21 @@ const Index: React.FC = () => {
                 <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
                   Workspace
                 </h2>
-                <WorkspacePanel />
+                <WorkspacePanel onDecodeMetricsChange={setDecodeMetricsState} />
               </section>
-              
+
+              {/* Metrics Evaluation */}
+              <section className="animate-fade-in" style={{ animationDelay: '375ms' }}>
+                <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
+                  Metrics Evaluation
+                </h2>
+                <MetricsEvaluationSection
+                  metrics={decodeMetricsState.metrics}
+                  recoveredImageUrl={decodeMetricsState.recoveredImageUrl}
+                  hasOriginalRef={!!decodeMetricsState.originalRefImage}
+                />
+              </section>
+
               {/* Visual Comparison */}
               <section className="animate-fade-in" style={{ animationDelay: '400ms' }}>
                 <h2 className="font-mono text-xs sm:text-sm uppercase tracking-wider text-muted-foreground mb-3 sm:mb-4">
