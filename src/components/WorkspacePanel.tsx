@@ -520,29 +520,17 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       let message: string;
       let recoveredImageData: ImageData | null = null;
 
-      if (useNeuralNet && modelsReady) {
-        if (!decodeKey) {
-          toast({
-            title: "Password required",
-            description: "Neural decryption requires the password used during encoding.",
-            variant: "destructive"
-          });
-          setIsProcessing(false);
-          URL.revokeObjectURL(imageUrl);
-          return;
-        }
-        const result = await decodeWithNeuralNet(imageData, decodeKey);
-        message = result.message;
-        recoveredImageData = result.recoveredImageData;
-      } else {
-        // Use LSB method
-        message = decodeWithKey(
-          imageData.data,
-          decodeKey,
-          canvas.width,
-          canvas.height
+      if (!modelsReady) {
+        throw new Error(
+          'Neural models are not loaded. Upload/load the EncryptionNet and DecryptionNet ONNX models before decoding.'
         );
       }
+      if (!decodeKey) {
+        throw new Error('Password is required for model-based decryption.');
+      }
+      const result = await decodeWithNeuralNet(imageData, decodeKey);
+      message = result.message;
+      recoveredImageData = result.recoveredImageData;
 
       if (!message || message.length === 0) {
         toast({
