@@ -362,26 +362,16 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       let stegoImageData: ImageData;
       let psnr: number;
 
-      if (useNeuralNet && modelsReady) {
-        // Neural mode auto-generates a password — user does not provide one
-        const result = await encodeWithNeuralNet(imageData, secretMessage);
-        stegoImageData = result.stegoImageData;
-        psnr = result.psnr;
-        setGeneratedPassword(result.password);
-      } else {
-        // Use LSB method
-        const stegoPixels = encodeWithKey(
-          imageData.data,
-          secretMessage,
-          encodeKey,
-          canvas.width,
-          canvas.height
+      if (!modelsReady) {
+        throw new Error(
+          'Neural models are not loaded. Upload/load the EncryptionNet and DecryptionNet ONNX models before encoding.'
         );
-        
-        stegoImageData = ctx.createImageData(canvas.width, canvas.height);
-        stegoImageData.data.set(stegoPixels);
-        psnr = calculatePSNR(originalPixels, stegoPixels);
       }
+      // Model-based encryption only — auto-generates a password
+      const result = await encodeWithNeuralNet(imageData, secretMessage);
+      stegoImageData = result.stegoImageData;
+      psnr = result.psnr;
+      setGeneratedPassword(result.password);
 
       setPsnrValue(psnr);
 
@@ -530,29 +520,17 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       let message: string;
       let recoveredImageData: ImageData | null = null;
 
-      if (useNeuralNet && modelsReady) {
-        if (!decodeKey) {
-          toast({
-            title: "Password required",
-            description: "Neural decryption requires the password used during encoding.",
-            variant: "destructive"
-          });
-          setIsProcessing(false);
-          URL.revokeObjectURL(imageUrl);
-          return;
-        }
-        const result = await decodeWithNeuralNet(imageData, decodeKey);
-        message = result.message;
-        recoveredImageData = result.recoveredImageData;
-      } else {
-        // Use LSB method
-        message = decodeWithKey(
-          imageData.data,
-          decodeKey,
-          canvas.width,
-          canvas.height
+      if (!modelsReady) {
+        throw new Error(
+          'Neural models are not loaded. Upload/load the EncryptionNet and DecryptionNet ONNX models before decoding.'
         );
       }
+      if (!decodeKey) {
+        throw new Error('Password is required for model-based decryption.');
+      }
+      const result = await decodeWithNeuralNet(imageData, decodeKey);
+      message = result.message;
+      recoveredImageData = result.recoveredImageData;
 
       if (!message || message.length === 0) {
         toast({
@@ -649,12 +627,7 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       
       toast({
         title: "Decoding Failed",
-        description:
-          error instanceof Error
-            ? error.message.includes('Verification header')
-              ? 'Stego image is corrupted or was re-compressed. Please upload the original PNG produced by the encoder (do not convert, resize, or compress it).'
-              : error.message
-            : 'An error occurred.',
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     } finally {
