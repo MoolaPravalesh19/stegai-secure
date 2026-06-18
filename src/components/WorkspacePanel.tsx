@@ -627,12 +627,7 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       
       toast({
         title: "Decoding Failed",
-        description:
-          error instanceof Error
-            ? error.message.includes('Verification header')
-              ? 'Stego image is corrupted or was re-compressed. Please upload the original PNG produced by the encoder (do not convert, resize, or compress it).'
-              : error.message
-            : 'An error occurred.',
+        description: error instanceof Error ? error.message : String(error),
         variant: "destructive"
       });
     } finally {
