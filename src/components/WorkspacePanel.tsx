@@ -362,26 +362,16 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       let stegoImageData: ImageData;
       let psnr: number;
 
-      if (useNeuralNet && modelsReady) {
-        // Neural mode auto-generates a password — user does not provide one
-        const result = await encodeWithNeuralNet(imageData, secretMessage);
-        stegoImageData = result.stegoImageData;
-        psnr = result.psnr;
-        setGeneratedPassword(result.password);
-      } else {
-        // Use LSB method
-        const stegoPixels = encodeWithKey(
-          imageData.data,
-          secretMessage,
-          encodeKey,
-          canvas.width,
-          canvas.height
+      if (!modelsReady) {
+        throw new Error(
+          'Neural models are not loaded. Upload/load the EncryptionNet and DecryptionNet ONNX models before encoding.'
         );
-        
-        stegoImageData = ctx.createImageData(canvas.width, canvas.height);
-        stegoImageData.data.set(stegoPixels);
-        psnr = calculatePSNR(originalPixels, stegoPixels);
       }
+      // Model-based encryption only — auto-generates a password
+      const result = await encodeWithNeuralNet(imageData, secretMessage);
+      stegoImageData = result.stegoImageData;
+      psnr = result.psnr;
+      setGeneratedPassword(result.password);
 
       setPsnrValue(psnr);
 
