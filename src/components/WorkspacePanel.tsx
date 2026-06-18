@@ -489,6 +489,42 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       return;
     }
 
+    // Reject any non-PNG / re-compressed image up front. Lossy formats
+    // (JPEG/WebP/AVIF/HEIC) and even re-saved PNGs that went through a
+    // converter destroy the LSB-embedded verification header and the
+    // shuffled+XOR'd cipher payload, so decryption cannot succeed.
+    const name = stegoImage.name.toLowerCase();
+    const isPngMime = stegoImage.type === 'image/png';
+    const isPngExt = name.endsWith('.png');
+    if (!isPngMime || !isPngExt) {
+      toast({
+        title: "Unsupported image format",
+        description:
+          "Only the original PNG produced by the encoder can be decrypted. Compressed or converted images (JPEG, WebP, AVIF, HEIC, screenshots) destroy the hidden payload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Sniff PNG magic bytes to catch files that were renamed to .png
+    // after being saved as JPEG/WebP/etc.
+    try {
+      const head = new Uint8Array(await stegoImage.slice(0, 8).arrayBuffer());
+      const pngSig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+      const isRealPng = pngSig.every((b, i) => head[i] === b);
+      if (!isRealPng) {
+        toast({
+          title: "Not a real PNG file",
+          description:
+            "This file has a .png extension but its contents are not PNG. Upload the exact PNG produced by the encoder — do not convert, resize, or re-save it.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } catch {
+      // fall through — downstream decode will error if the file is unreadable
+    }
+
     setIsProcessing(true);
     setDecodedMessage(null);
     setDecodingTime(null);
@@ -514,6 +550,22 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       ctx.drawImage(img, 0, 0);
 
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Neural-mode stego images are always exactly 256x256. Any other size
+      // means the file was resized after encoding, which destroys the
+      // shuffled-pixel + LSB-embedded header.
+      if (useNeuralNet && modelsReady) {
+        if (canvas.width !== 256 || canvas.height !== 256) {
+          URL.revokeObjectURL(imageUrl);
+          setIsProcessing(false);
+          toast({
+            title: "Image was resized",
+            description: `Neural stego images must be exactly 256×256 px. This image is ${canvas.width}×${canvas.height}. Upload the original PNG produced by the encoder.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
 
       let message: string;
       let recoveredImageData: ImageData | null = null;
