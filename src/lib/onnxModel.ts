@@ -469,10 +469,9 @@ export const encodeWithNeuralNet = async (
 // Decode: LSB-extract → XOR → unshuffle → DecryptionNet; verify password hash
 export const decodeWithNeuralNet = async (
   stegoImageData: ImageData,
-  password: string
+  password?: string
 ): Promise<{ message: string; recoveredImageData: ImageData; verified: boolean }> => {
   if (!revealSession) throw new Error('DecryptionNet model not loaded');
-  if (!password) throw new Error('Password is required for neural decryption');
 
   // Force 256x256 RGB working buffer (image should already be 256 from encode)
   const cipherRGB = resizeImageDataToRGB(stegoImageData, IMG_SIZE);
@@ -487,8 +486,12 @@ export const decodeWithNeuralNet = async (
     const sep = extracted.indexOf('||');
     const storedHash = extracted.slice(0, sep);
     actualMessage = extracted.slice(sep + 2);
-    const inputHash = await sha256Hex(password);
-    verified = inputHash === storedHash;
+    if (password) {
+      const inputHash = await sha256Hex(password);
+      verified = inputHash === storedHash;
+    } else {
+      verified = true; // backend-managed password; skip user verification
+    }
   } else {
     actualMessage = extracted;
   }
