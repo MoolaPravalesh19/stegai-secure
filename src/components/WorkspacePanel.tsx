@@ -532,18 +532,7 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       message = result.message;
       recoveredImageData = result.recoveredImageData;
 
-      if (!message || message.length === 0) {
-        toast({
-          title: "No message found",
-          description: "Could not extract a message. Check image or key.",
-          variant: "destructive"
-        });
-        setIsProcessing(false);
-        URL.revokeObjectURL(imageUrl);
-        return;
-      }
-
-      setDecodedMessage(message);
+      setDecodedMessage(message || '(no embedded text recovered — image-only output)');
 
       // If neural mode produced a recovered image, render it and (optionally)
       // compute metrics against a user-supplied original reference.
