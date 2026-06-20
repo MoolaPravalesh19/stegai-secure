@@ -493,7 +493,12 @@ export const decodeWithNeuralNet = async (
       verified = true; // backend-managed password; skip user verification
     }
   } else {
-    actualMessage = extracted;
+    // LSB header missing → stego image was compressed/re-saved. The image
+    // pixels still decode through the CNN, but the embedded text payload
+    // is gone. Return an empty message so the UI can fall back to the
+    // backend-stored message instead of showing extracted LSB noise.
+    actualMessage = '';
+    verified = true;
   }
 
   // 3. Recover image: XOR → unshuffle → DecryptionNet

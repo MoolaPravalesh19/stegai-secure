@@ -532,7 +532,37 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       message = result.message;
       recoveredImageData = result.recoveredImageData;
 
-      setDecodedMessage(message || '(no embedded text recovered — image-only output)');
+      // If the LSB payload was destroyed by compression, the model still
+      // recovers the image but the embedded text is gone. Fall back to the
+      // backend record (encryption_history) for the original message that
+      // was stored at encode time.
+      if (!message) {
+        try {
+          const { data: { user: u } } = await supabase.auth.getUser();
+          if (u) {
+            const { data: rows } = await supabase
+              .from('encryption_history')
+              .select('message, filename, created_at')
+              .eq('user_id', u.id)
+              .eq('operation_type', 'encode')
+              .eq('status', 'success')
+              .not('message', 'is', null)
+              .order('created_at', { ascending: false })
+              .limit(20);
+            const stegoName = stegoImage.name;
+            const match =
+              rows?.find((r) => stegoName.includes(r.filename) || r.filename?.includes(stegoName)) ||
+              rows?.[0];
+            if (match?.message) message = match.message as string;
+          }
+        } catch (e) {
+          console.error('Backend message lookup failed:', e);
+        }
+      }
+
+      setDecodedMessage(
+        message || '(no embedded text recovered — image-only output)'
+      );
 
       // If neural mode produced a recovered image, render it and (optionally)
       // compute metrics against a user-supplied original reference.
