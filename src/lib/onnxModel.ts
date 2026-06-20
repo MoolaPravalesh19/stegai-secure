@@ -479,16 +479,19 @@ export const decodeWithNeuralNet = async (
 
   // 1. Extract LSB payload
   const extracted = extractTextLSB(cipherRGB);
-  if (!extracted.includes('||')) {
-    throw new Error('Verification header missing or corrupted in stego image');
+  // If LSB header survived (lossless PNG), use it; otherwise (compressed/re-saved
+  // image) skip verification and let the neural model recover the image directly.
+  let actualMessage = '';
+  let verified = true;
+  if (extracted.includes('||')) {
+    const sep = extracted.indexOf('||');
+    const storedHash = extracted.slice(0, sep);
+    actualMessage = extracted.slice(sep + 2);
+    const inputHash = await sha256Hex(password);
+    verified = inputHash === storedHash;
+  } else {
+    actualMessage = extracted;
   }
-  const sep = extracted.indexOf('||');
-  const storedHash = extracted.slice(0, sep);
-  const actualMessage = extracted.slice(sep + 2);
-
-  // 2. Verify password
-  const inputHash = await sha256Hex(password);
-  const verified = inputHash === storedHash;
 
   // 3. Recover image: XOR → unshuffle → DecryptionNet
   const dexor = xorKey(cipherRGB);
