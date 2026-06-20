@@ -525,25 +525,14 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
           'Neural models are not loaded. Upload/load the EncryptionNet and DecryptionNet ONNX models before decoding.'
         );
       }
-      if (!decodeKey) {
-        throw new Error('Password is required for model-based decryption.');
-      }
-      const result = await decodeWithNeuralNet(imageData, decodeKey);
+      // Password is generated and managed by the model backend during encode;
+      // pass it through if the user supplied one, otherwise let the backend
+      // handle verification automatically.
+      const result = await decodeWithNeuralNet(imageData, decodeKey || undefined);
       message = result.message;
       recoveredImageData = result.recoveredImageData;
 
-      if (!message || message.length === 0) {
-        toast({
-          title: "No message found",
-          description: "Could not extract a message. Check image or key.",
-          variant: "destructive"
-        });
-        setIsProcessing(false);
-        URL.revokeObjectURL(imageUrl);
-        return;
-      }
-
-      setDecodedMessage(message);
+      setDecodedMessage(message || '(no embedded text recovered — image-only output)');
 
       // If neural mode produced a recovered image, render it and (optionally)
       // compute metrics against a user-supplied original reference.
