@@ -62,6 +62,48 @@ export type Database = {
         }
         Relationships: []
       }
+      evaluation_metrics: {
+        Row: {
+          created_at: string
+          id: string
+          image_a_name: string | null
+          image_b_name: string | null
+          max_error: number | null
+          mse: number | null
+          notes: string | null
+          psnr: number | null
+          ssim: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_a_name?: string | null
+          image_b_name?: string | null
+          max_error?: number | null
+          mse?: number | null
+          notes?: string | null
+          psnr?: number | null
+          ssim?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_a_name?: string | null
+          image_b_name?: string | null
+          max_error?: number | null
+          mse?: number | null
+          notes?: string | null
+          psnr?: number | null
+          ssim?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
