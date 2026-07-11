@@ -3,6 +3,9 @@ import { BarChart3, Loader2 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
 import { Button } from './ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from '@/hooks/use-toast';
 
 interface Props {
   metrics: { psnr: number; mse: number; ssim: number; maxError: number } | null;
@@ -64,8 +67,33 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
   const [standalone, setStandalone] = useState<Metrics | null>(null);
   const [computing, setComputing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
 
   const effective = metrics ?? standalone;
+
+  const saveMetrics = async (m: Metrics, aName: string | null, bName: string | null) => {
+    if (!user) {
+      toast({ title: 'Sign in required', description: 'Sign in to save evaluation metrics.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    const { error: insertError } = await supabase.from('evaluation_metrics').insert({
+      user_id: user.id,
+      image_a_name: aName,
+      image_b_name: bName,
+      psnr: isFinite(m.psnr) ? m.psnr : null,
+      mse: m.mse,
+      ssim: m.ssim,
+      max_error: m.maxError,
+    });
+    setSaving(false);
+    if (insertError) {
+      toast({ title: 'Save failed', description: insertError.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Metrics saved', description: 'Evaluation metrics stored in your history.' });
+    }
+  };
 
   const handleCompute = async () => {
     if (!imgA || !imgB) return;
@@ -74,7 +102,9 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
     try {
       const a = await fileToImageData(imgA, 256);
       const b = await fileToImageData(imgB, 256);
-      setStandalone(computeImageMetrics(a.data, b.data));
+      const m = computeImageMetrics(a.data, b.data);
+      setStandalone(m);
+      await saveMetrics(m, imgA.name, imgB.name);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to compute metrics');
     } finally {
@@ -129,6 +159,7 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
       )}
 
       {effective ? (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">PSNR</p>
@@ -149,6 +180,18 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
             <p className="font-mono text-sm sm:text-base text-foreground">{effective.maxError}</p>
           </div>
         </div>
+        {metrics && (
+          <Button
+            variant="cyber"
+            size="sm"
+            className="w-full mt-3"
+            disabled={saving}
+            onClick={() => saveMetrics(metrics, 'original_reference', 'decoded_output')}
+          >
+            {saving ? (<><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>) : 'Save Metrics to History'}
+          </Button>
+        )}
+        </>
       ) : null}
     </GlassCard>
   );
