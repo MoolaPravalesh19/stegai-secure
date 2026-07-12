@@ -69,6 +69,8 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveAttempt, setSaveAttempt] = useState(0);
+  const MAX_ATTEMPTS = 3;
   const [lastSavePayload, setLastSavePayload] = useState<
     { m: Metrics; aName: string | null; bName: string | null } | null
   >(null);
@@ -88,7 +90,8 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
     }
     setLastSavePayload({ m, aName, bName });
     setSaveStatus('saving');
-    setSaveError(null);
+    setSaveAttempt(attempt);
+    if (attempt === 1) setSaveError(null);
     const { error: insertError } = await supabase.from('evaluation_metrics').insert({
       user_id: user.id,
       image_a_name: aName,
@@ -99,18 +102,31 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
       max_error: m.maxError,
     });
     if (insertError) {
-      if (attempt < 2) {
-        toast({ title: 'Retrying save…', description: 'First attempt failed, retrying automatically.' });
-        await new Promise((r) => setTimeout(r, 800));
+      setSaveError(insertError.message);
+      if (attempt < MAX_ATTEMPTS) {
+        toast({
+          title: `Retrying save (attempt ${attempt + 1}/${MAX_ATTEMPTS})`,
+          description: insertError.message,
+        });
+        await new Promise((r) => setTimeout(r, 800 * attempt));
         return saveMetrics(m, aName, bName, attempt + 1);
       }
       setSaveStatus('error');
-      setSaveError(insertError.message);
-      toast({ title: 'Save failed', description: insertError.message, variant: 'destructive' });
+      toast({
+        title: `Save failed after ${MAX_ATTEMPTS} attempts`,
+        description: insertError.message,
+        variant: 'destructive',
+      });
       return false;
     }
     setSaveStatus('success');
-    toast({ title: 'Metrics saved', description: 'Evaluation metrics stored in your history.' });
+    toast({
+      title: 'Metrics saved',
+      description:
+        attempt > 1
+          ? `Stored in your history after ${attempt} attempts.`
+          : 'Evaluation metrics stored in your history.',
+    });
     return true;
   };
 
@@ -219,9 +235,18 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
             }
           >
             {saveStatus === 'saving' && <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving metrics…</>}
+            {saveStatus === 'saving' && saveAttempt > 1 && (
+              <span className="ml-1 opacity-80">
+                (attempt {saveAttempt}/{MAX_ATTEMPTS}){saveError ? ` — last error: ${saveError}` : ''}
+              </span>
+            )}
             {saveStatus === 'success' && <><CheckCircle2 className="w-3.5 h-3.5" /> Metrics saved to history</>}
             {saveStatus === 'error' && (
-              <><AlertCircle className="w-3.5 h-3.5" /> Save failed{saveError ? `: ${saveError}` : ''}</>
+              <>
+                <AlertCircle className="w-3.5 h-3.5" />
+                Save failed after {saveAttempt}/{MAX_ATTEMPTS} attempts
+                {saveError ? ` — ${saveError}` : ''}
+              </>
             )}
           </div>
         )}
