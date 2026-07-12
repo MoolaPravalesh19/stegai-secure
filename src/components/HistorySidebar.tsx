@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2, MessageSquare, Image, BarChart3 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2, MessageSquare, Image, BarChart3, Download, Search, ChevronLeft } from 'lucide-react';
 import GlassCard from './GlassCard';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { exportToCSV } from '@/lib/csvExport';
 
 interface HistoryItem {
   id: string;
@@ -30,12 +33,16 @@ interface EvalMetric {
   mse: number | null;
 }
 
+const PAGE_SIZE = 5;
+
 const HistorySidebar: React.FC = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [evalMetrics, setEvalMetrics] = useState<EvalMetric[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [metricSearch, setMetricSearch] = useState('');
+  const [metricPage, setMetricPage] = useState(1);
 
   useEffect(() => {
     // Check auth state
@@ -85,7 +92,7 @@ const HistorySidebar: React.FC = () => {
         .from('evaluation_metrics')
         .select('id, created_at, image_a_name, image_b_name, psnr, ssim, mse')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(100);
       if (error) throw error;
       setEvalMetrics((data || []) as EvalMetric[]);
     } catch (error) {
