@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2, MessageSquare, Image } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2, MessageSquare, Image, BarChart3 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,8 +20,19 @@ interface HistoryItem {
   ssim_score: number | null;
 }
 
+interface EvalMetric {
+  id: string;
+  created_at: string;
+  image_a_name: string | null;
+  image_b_name: string | null;
+  psnr: number | null;
+  ssim: number | null;
+  mse: number | null;
+}
+
 const HistorySidebar: React.FC = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [evalMetrics, setEvalMetrics] = useState<EvalMetric[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -42,8 +53,10 @@ const HistorySidebar: React.FC = () => {
   useEffect(() => {
     if (user) {
       fetchHistory();
+      fetchEvalMetrics();
     } else {
       setHistory([]);
+      setEvalMetrics([]);
       setLoading(false);
     }
   }, [user]);
@@ -63,6 +76,20 @@ const HistorySidebar: React.FC = () => {
       console.error('Error fetching history:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEvalMetrics = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('evaluation_metrics')
+        .select('id, created_at, image_a_name, image_b_name, psnr, ssim, mse')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      setEvalMetrics((data || []) as EvalMetric[]);
+    } catch (error) {
+      console.error('Error fetching evaluation metrics:', error);
     }
   };
 
@@ -241,6 +268,61 @@ const HistorySidebar: React.FC = () => {
           ))
         )}
       </div>
+
+      {user && (
+        <div className="mt-4 pt-4 border-t border-border/50">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-md bg-accent/10">
+              <BarChart3 className="w-4 h-4 text-accent" />
+            </div>
+            <div>
+              <h4 className="font-mono font-semibold text-xs sm:text-sm text-foreground">Saved Metrics</h4>
+              <p className="text-[10px] text-muted-foreground">Evaluation history</p>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-56 overflow-y-auto">
+            {evalMetrics.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground text-center py-3">No saved metrics yet</p>
+            ) : (
+              evalMetrics.map((m) => (
+                <div
+                  key={m.id}
+                  className="p-2 rounded-md border border-border/40 bg-muted/20 space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-medium text-foreground truncate">
+                      {m.image_a_name || 'A'} <span className="text-muted-foreground">↔</span> {m.image_b_name || 'B'}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {formatTimestamp(m.created_at)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
+                    <div className="bg-background/50 rounded px-1.5 py-1">
+                      <span className="text-muted-foreground block">PSNR</span>
+                      <span className="text-cyber-cyan">
+                        {m.psnr != null ? `${Number(m.psnr).toFixed(2)}` : '—'}
+                      </span>
+                    </div>
+                    <div className="bg-background/50 rounded px-1.5 py-1">
+                      <span className="text-muted-foreground block">SSIM</span>
+                      <span className="text-cyber-purple">
+                        {m.ssim != null ? Number(m.ssim).toFixed(4) : '—'}
+                      </span>
+                    </div>
+                    <div className="bg-background/50 rounded px-1.5 py-1">
+                      <span className="text-muted-foreground block">MSE</span>
+                      <span className="text-foreground">
+                        {m.mse != null ? Number(m.mse).toFixed(2) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </GlassCard>
   );
 };
