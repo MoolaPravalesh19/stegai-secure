@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2, MessageSquare, Image, BarChart3 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Clock, CheckCircle, AlertCircle, ChevronRight, History, Loader2, MessageSquare, Image, BarChart3, Download, Search, ChevronLeft } from 'lucide-react';
 import GlassCard from './GlassCard';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { exportToCSV } from '@/lib/csvExport';
 
 interface HistoryItem {
   id: string;
@@ -30,12 +33,16 @@ interface EvalMetric {
   mse: number | null;
 }
 
+const PAGE_SIZE = 5;
+
 const HistorySidebar: React.FC = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [evalMetrics, setEvalMetrics] = useState<EvalMetric[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [metricSearch, setMetricSearch] = useState('');
+  const [metricPage, setMetricPage] = useState(1);
 
   useEffect(() => {
     // Check auth state
@@ -85,7 +92,7 @@ const HistorySidebar: React.FC = () => {
         .from('evaluation_metrics')
         .select('id, created_at, image_a_name, image_b_name, psnr, ssim, mse')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(100);
       if (error) throw error;
       setEvalMetrics((data || []) as EvalMetric[]);
     } catch (error) {
@@ -103,6 +110,49 @@ const HistorySidebar: React.FC = () => {
     } catch {
       return 'Unknown date';
     }
+  };
+
+  const filteredMetrics = useMemo(() => {
+    const q = metricSearch.trim().toLowerCase();
+    if (!q) return evalMetrics;
+    return evalMetrics.filter((m) => {
+      const a = (m.image_a_name || '').toLowerCase();
+      const b = (m.image_b_name || '').toLowerCase();
+      const date = format(new Date(m.created_at), 'MMM d, yyyy').toLowerCase();
+      const iso = m.created_at.toLowerCase();
+      return a.includes(q) || b.includes(q) || date.includes(q) || iso.includes(q);
+    });
+  }, [evalMetrics, metricSearch]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredMetrics.length / PAGE_SIZE));
+  const currentPage = Math.min(metricPage, totalPages);
+  const pagedMetrics = filteredMetrics.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setMetricPage(1);
+  }, [metricSearch]);
+
+  const handleExportCSV = () => {
+    if (!filteredMetrics.length) return;
+    const rows = filteredMetrics.map((m) => {
+      const match = history.find(
+        (h) => h.filename && (h.filename === m.image_a_name || h.filename === m.image_b_name),
+      );
+      return {
+        saved_at: m.created_at,
+        operation: match?.operation_type || 'evaluation',
+        image_a: m.image_a_name || '',
+        image_b: m.image_b_name || '',
+        psnr: m.psnr ?? '',
+        ssim: m.ssim ?? '',
+        mse: m.mse ?? '',
+        encoding_time_ms: match?.encoding_time_ms ?? '',
+      };
+    });
+    exportToCSV(rows, `evaluation-metrics-${format(new Date(), 'yyyy-MM-dd')}`);
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -271,56 +321,127 @@ const HistorySidebar: React.FC = () => {
 
       {user && (
         <div className="mt-4 pt-4 border-t border-border/50">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded-md bg-accent/10">
-              <BarChart3 className="w-4 h-4 text-accent" />
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1.5 rounded-md bg-accent/10 shrink-0">
+                <BarChart3 className="w-4 h-4 text-accent" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-mono font-semibold text-xs sm:text-sm text-foreground">Saved Metrics</h4>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {filteredMetrics.length} saved{metricSearch && ` · filtered`}
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-mono font-semibold text-xs sm:text-sm text-foreground">Saved Metrics</h4>
-              <p className="text-[10px] text-muted-foreground">Evaluation history</p>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-[10px]"
+              onClick={handleExportCSV}
+              disabled={!filteredMetrics.length}
+            >
+              <Download className="w-3 h-3 mr-1" /> CSV
+            </Button>
           </div>
-          <div className="space-y-2 max-h-56 overflow-y-auto">
-            {evalMetrics.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground text-center py-3">No saved metrics yet</p>
+
+          <div className="relative mb-2">
+            <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={metricSearch}
+              onChange={(e) => setMetricSearch(e.target.value)}
+              placeholder="Search by image or date…"
+              className="h-7 pl-6 text-[11px]"
+            />
+          </div>
+
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {filteredMetrics.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground text-center py-3">
+                {metricSearch ? 'No matching metrics' : 'No saved metrics yet'}
+              </p>
             ) : (
-              evalMetrics.map((m) => (
-                <div
-                  key={m.id}
-                  className="p-2 rounded-md border border-border/40 bg-muted/20 space-y-1"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-medium text-foreground truncate">
-                      {m.image_a_name || 'A'} <span className="text-muted-foreground">↔</span> {m.image_b_name || 'B'}
-                    </p>
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                      {formatTimestamp(m.created_at)}
-                    </span>
+              pagedMetrics.map((m) => {
+                const match = history.find(
+                  (h) => h.filename && (h.filename === m.image_a_name || h.filename === m.image_b_name),
+                );
+                const opName = match?.operation_type || 'evaluation';
+                return (
+                  <div
+                    key={m.id}
+                    className="p-2 rounded-md border border-border/40 bg-muted/20 space-y-1"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-medium text-foreground truncate">
+                        {m.image_a_name || 'A'} <span className="text-muted-foreground">↔</span> {m.image_b_name || 'B'}
+                      </p>
+                      <span
+                        className={cn(
+                          'px-1.5 py-0.5 rounded text-[9px] uppercase font-medium shrink-0',
+                          opName === 'encode'
+                            ? 'bg-primary/10 text-primary'
+                            : opName === 'decode'
+                            ? 'bg-secondary/10 text-secondary'
+                            : 'bg-accent/10 text-accent',
+                        )}
+                      >
+                        {opName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>Saved at {formatFullTimestamp(m.created_at)}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
+                      <div className="bg-background/50 rounded px-1.5 py-1">
+                        <span className="text-muted-foreground block">PSNR</span>
+                        <span className="text-cyber-cyan">
+                          {m.psnr != null ? `${Number(m.psnr).toFixed(2)}` : '—'}
+                        </span>
+                      </div>
+                      <div className="bg-background/50 rounded px-1.5 py-1">
+                        <span className="text-muted-foreground block">SSIM</span>
+                        <span className="text-cyber-purple">
+                          {m.ssim != null ? Number(m.ssim).toFixed(4) : '—'}
+                        </span>
+                      </div>
+                      <div className="bg-background/50 rounded px-1.5 py-1">
+                        <span className="text-muted-foreground block">MSE</span>
+                        <span className="text-foreground">
+                          {m.mse != null ? Number(m.mse).toFixed(2) : '—'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
-                    <div className="bg-background/50 rounded px-1.5 py-1">
-                      <span className="text-muted-foreground block">PSNR</span>
-                      <span className="text-cyber-cyan">
-                        {m.psnr != null ? `${Number(m.psnr).toFixed(2)}` : '—'}
-                      </span>
-                    </div>
-                    <div className="bg-background/50 rounded px-1.5 py-1">
-                      <span className="text-muted-foreground block">SSIM</span>
-                      <span className="text-cyber-purple">
-                        {m.ssim != null ? Number(m.ssim).toFixed(4) : '—'}
-                      </span>
-                    </div>
-                    <div className="bg-background/50 rounded px-1.5 py-1">
-                      <span className="text-muted-foreground block">MSE</span>
-                      <span className="text-foreground">
-                        {m.mse != null ? Number(m.mse).toFixed(2) : '—'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
+
+          {filteredMetrics.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-2 gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                disabled={currentPage === 1}
+                onClick={() => setMetricPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="w-3 h-3" /> Prev
+              </Button>
+              <span className="text-[10px] text-muted-foreground">
+                Page {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                disabled={currentPage === totalPages}
+                onClick={() => setMetricPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next <ChevronRight className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </GlassCard>
