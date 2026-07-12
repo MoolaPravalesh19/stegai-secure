@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, Loader2 } from 'lucide-react';
+import { BarChart3, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import GlassCard from './GlassCard';
 import ImageUploader from './ImageUploader';
 import { Button } from './ui/button';
@@ -67,17 +67,28 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
   const [standalone, setStandalone] = useState<Metrics | null>(null);
   const [computing, setComputing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastSavePayload, setLastSavePayload] = useState<
+    { m: Metrics; aName: string | null; bName: string | null } | null
+  >(null);
   const { user } = useAuth();
 
   const effective = metrics ?? standalone;
 
-  const saveMetrics = async (m: Metrics, aName: string | null, bName: string | null) => {
+  const saveMetrics = async (
+    m: Metrics,
+    aName: string | null,
+    bName: string | null,
+    attempt = 1,
+  ): Promise<boolean> => {
     if (!user) {
       toast({ title: 'Sign in required', description: 'Sign in to save evaluation metrics.', variant: 'destructive' });
-      return;
+      return false;
     }
-    setSaving(true);
+    setLastSavePayload({ m, aName, bName });
+    setSaveStatus('saving');
+    setSaveError(null);
     const { error: insertError } = await supabase.from('evaluation_metrics').insert({
       user_id: user.id,
       image_a_name: aName,
@@ -87,11 +98,27 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
       ssim: m.ssim,
       max_error: m.maxError,
     });
-    setSaving(false);
     if (insertError) {
+      if (attempt < 2) {
+        toast({ title: 'Retrying save…', description: 'First attempt failed, retrying automatically.' });
+        await new Promise((r) => setTimeout(r, 800));
+        return saveMetrics(m, aName, bName, attempt + 1);
+      }
+      setSaveStatus('error');
+      setSaveError(insertError.message);
       toast({ title: 'Save failed', description: insertError.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Metrics saved', description: 'Evaluation metrics stored in your history.' });
+      return false;
+    }
+    setSaveStatus('success');
+    toast({ title: 'Metrics saved', description: 'Evaluation metrics stored in your history.' });
+    return true;
+  };
+
+  const handleResave = () => {
+    if (lastSavePayload) {
+      saveMetrics(lastSavePayload.m, lastSavePayload.aName, lastSavePayload.bName);
+    } else if (metrics) {
+      saveMetrics(metrics, 'original_reference', 'decoded_output');
     }
   };
 
@@ -180,15 +207,47 @@ const MetricsEvaluationSection: React.FC<Props> = ({ metrics, recoveredImageUrl 
             <p className="font-mono text-sm sm:text-base text-foreground">{effective.maxError}</p>
           </div>
         </div>
+        {(saveStatus !== 'idle' || saveError) && (
+          <div
+            className={
+              'mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ' +
+              (saveStatus === 'saving'
+                ? 'border-primary/30 bg-primary/5 text-primary'
+                : saveStatus === 'success'
+                ? 'border-cyber-green/30 bg-cyber-green/5 text-cyber-green'
+                : 'border-destructive/30 bg-destructive/5 text-destructive')
+            }
+          >
+            {saveStatus === 'saving' && <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving metrics…</>}
+            {saveStatus === 'success' && <><CheckCircle2 className="w-3.5 h-3.5" /> Metrics saved to history</>}
+            {saveStatus === 'error' && (
+              <><AlertCircle className="w-3.5 h-3.5" /> Save failed{saveError ? `: ${saveError}` : ''}</>
+            )}
+          </div>
+        )}
         {metrics && (
           <Button
             variant="cyber"
             size="sm"
-            className="w-full mt-3"
-            disabled={saving}
+            className="w-full mt-2"
+            disabled={saveStatus === 'saving'}
             onClick={() => saveMetrics(metrics, 'original_reference', 'decoded_output')}
           >
-            {saving ? (<><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>) : 'Save Metrics to History'}
+            {saveStatus === 'saving' ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
+            ) : (
+              'Save Metrics to History'
+            )}
+          </Button>
+        )}
+        {saveStatus === 'error' && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-2"
+            onClick={handleResave}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" /> Resave Metrics
           </Button>
         )}
         </>
