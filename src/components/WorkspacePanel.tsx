@@ -479,6 +479,15 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       return;
     }
 
+    if (!decodeKey || decodeKey.trim().length === 0) {
+      toast({
+        title: "Password required",
+        description: "Enter the password generated during encoding. Decryption is only possible with the correct password.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     setDecodedMessage(null);
     setDecodingTime(null);
@@ -528,7 +537,7 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ onDecodeMetricsChange }
       // Password is generated and managed by the model backend during encode;
       // pass it through if the user supplied one, otherwise let the backend
       // handle verification automatically.
-      const result = await decodeWithNeuralNet(imageData, decodeKey || undefined);
+      const result = await decodeWithNeuralNet(imageData, decodeKey.trim());
       message = result.message;
       recoveredImageData = result.recoveredImageData;
 
