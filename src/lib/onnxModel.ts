@@ -476,29 +476,31 @@ export const decodeWithNeuralNet = async (
   // Force 256x256 RGB working buffer (image should already be 256 from encode)
   const cipherRGB = resizeImageDataToRGB(stegoImageData, IMG_SIZE);
 
+  // Password is mandatory for neural-net decoding.
+  if (!password || password.length === 0) {
+    throw new Error('Password required: enter the password generated during encoding to decrypt.');
+  }
+
   // 1. Extract LSB payload
   const extracted = extractTextLSB(cipherRGB);
-  // If LSB header survived (lossless PNG), use it; otherwise (compressed/re-saved
-  // image) skip verification and let the neural model recover the image directly.
   let actualMessage = '';
-  let verified = true;
+  let verified = false;
   if (extracted.includes('||')) {
     const sep = extracted.indexOf('||');
     const storedHash = extracted.slice(0, sep);
     actualMessage = extracted.slice(sep + 2);
-    if (password) {
-      const inputHash = await sha256Hex(password);
-      verified = inputHash === storedHash;
-    } else {
-      verified = true; // backend-managed password; skip user verification
+    const inputHash = await sha256Hex(password);
+    verified = inputHash === storedHash;
+    if (!verified) {
+      throw new Error('Access denied: incorrect password.');
     }
   } else {
-    // LSB header missing → stego image was compressed/re-saved. The image
-    // pixels still decode through the CNN, but the embedded text payload
-    // is gone. Return an empty message so the UI can fall back to the
-    // backend-stored message instead of showing extracted LSB noise.
-    actualMessage = '';
-    verified = true;
+    // LSB header missing → stego image was compressed/re-saved and the
+    // embedded hash+payload was destroyed. Without the hash we cannot
+    // verify the password, so refuse to decrypt.
+    throw new Error(
+      'Access denied: this image does not contain a verifiable password payload (it may have been re-compressed). Upload the original lossless PNG produced by encoding.'
+    );
   }
 
   // 3. Recover image: XOR → unshuffle → DecryptionNet
@@ -512,10 +514,6 @@ export const decodeWithNeuralNet = async (
   const recoveredFloat = out[revealSession.outputNames[0]].data as Float32Array;
   const recoveredRGB = float32CHWToRGB(recoveredFloat, IMG_SIZE);
   const recoveredImageData = rgbToImageData(recoveredRGB, IMG_SIZE);
-
-  if (!verified) {
-    throw new Error('Access denied: incorrect password');
-  }
 
   return { message: actualMessage, recoveredImageData, verified };
 };
